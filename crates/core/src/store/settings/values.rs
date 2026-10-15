@@ -1,6 +1,7 @@
 //! What a setting's value may be: a typed or hand-written value is checked against its entry in settings_list.rs and
 //! comes back as the board keeps it, or is refused with the nearest right one as a hint.
-use crate::agents::kinds::{kind, KIND_NAMES};
+use crate::agents::kinds::{kind, kind_named, KIND_NAMES};
+use crate::agents::roles::refusal;
 use crate::err::{Error, Res};
 use crate::json::*;
 use crate::store::attempts::{MAX_ATTEMPTS, TOO_MANY};
@@ -10,7 +11,7 @@ pub const NONE: &str = "none";
 fn refuse<T>(msg: String) -> Res<T> { Err(Error::refused(msg)) }
 
 /// How many edits make one word another.
-fn distance(a: &str, b: &str) -> usize {
+pub fn distance(a: &str, b: &str) -> usize {
     let (a, b): (Vec<char>, Vec<char>) = (a.chars().collect(), b.chars().collect());
     let mut d: Vec<Vec<usize>> = (0..=a.len()).map(|i| { let mut r = vec![0; b.len() + 1]; r[0] = i; r }).collect();
     for j in 1..=b.len() { d[0][j] = j; }
@@ -94,6 +95,9 @@ pub fn agent_of(value: &str) -> AgentName {
 /// An effort or an access is right or wrong for one program: "" when it fits, else why not.
 pub fn fits(name: &str, value: &str, agent: &str) -> String {
     let (Some(e), Some(a)) = (entry_of(name), kind(&agent_of(agent).kind)) else { return String::new() };
+    if e.ty == Ty::Effort && value != "default" && a.effort.is_empty() {
+        return if a.effort_note.is_empty() { format!("{} takes no effort level when the board starts it: leave it at default.", a.name) } else { format!("{}: leave it at default.", a.effort_note) };
+    }
     if e.ty == Ty::Effort && value != "default" && !a.efforts.is_empty() && !a.efforts.contains(&value) {
         return format!("{} has no effort \"{value}\": it takes {} (or default, for its own).", a.name, a.efforts.join(", "));
     }
@@ -111,12 +115,16 @@ fn check_agent(e: &Entry, v: &Value) -> Res<Value> {
         if e.none && w.to_lowercase() == NONE { return Ok(json!(NONE)); }
         return refuse(format!("{} must be {}{}, with an optional model after a slash.", e.name, KIND_NAMES.join(", "), if e.none { " or none" } else { "" }));
     }
-    let k = n.kind.to_lowercase();
-    if kind(&k).is_none() { return refuse(format!("{}: no agent program \"{}\". It must be {}{}.{}", e.name, n.kind, KIND_NAMES.join(", "), if e.none { " or none" } else { "" }, hint(&k, KIND_NAMES))); }
+    let Some(k) = kind_named(&n.kind).map(|a| a.name.to_string()) else {
+        let k = n.kind.to_lowercase();
+        return refuse(format!("{}: no agent program \"{}\". It must be {}{}.{}", e.name, n.kind, KIND_NAMES.join(", "), if e.none { " or none" } else { "" }, hint(&k, &KIND_NAMES)));
+    };
     if w.contains('/') {
-        let ok = n.model.chars().next().map(|c| c.is_ascii_alphanumeric()).unwrap_or(false) && n.model.chars().all(|c| c.is_ascii_alphanumeric() || "._:/[]-".contains(c));
+        // A model with its parameters in brackets (cursor: `claude-opus-4-8[effort=high]`), or its provider after an @.
+        let ok = n.model.chars().next().map(|c| c.is_ascii_alphanumeric()).unwrap_or(false) && n.model.chars().all(|c| c.is_ascii_alphanumeric() || "._:/@[]-=,".contains(c));
         if !ok { return refuse(format!("{}: \"{}\" is not a model name.", e.name, n.model)); }
     }
+    if let Some(why) = refusal(&e.name, &k, !n.model.is_empty()) { return refuse(why); }
     Ok(json!(if n.model.is_empty() { k } else { format!("{k}/{}", n.model) }))
 }
 fn split_words(s: &str) -> Vec<String> { s.split(|c: char| c.is_whitespace() || c == ',').filter(|x| !x.is_empty()).map(String::from).collect() }
@@ -250,6 +258,14 @@ pub fn check(name: &str, value: &Value, agent: &str) -> Res<Value> {
     let v = check_ty(e, value)?;
     if !agent.is_empty() { let why = fits(name, &text(&v), agent); if !why.is_empty() { return refuse(format!("{name}: {why}")); } }
     Ok(v)
+}
+/// A model named in a value being set is one its program takes (agents/models.rs). Only when a value is set: a value
+/// read from a file is not checked again, so reading never waits for a program's list.
+pub fn models_fit(name: &str, v: &Value) -> Res<()> {
+    let Some(e) = entry_of(name).filter(|e| matches!(e.ty, Ty::Agent | Ty::Agents | Ty::Attempts)) else { return Ok(()) };
+    let all: Vec<String> = match v { Value::Array(a) => a.iter().map(text).collect(), _ => text(v).split(", ").map(String::from).collect() };
+    for a in all.iter().map(|x| agent_of(x)) { if let Some(why) = crate::agents::models::why_not(&a.kind, &a.model) { return refuse(format!("{}: {why}", e.name)); } }
+    Ok(())
 }
 /// A value as a person reads it.
 pub fn say(v: &Value) -> String { match v { Value::Array(a) => a.iter().map(text).collect::<Vec<_>>().join(", "), _ => text(v) } }

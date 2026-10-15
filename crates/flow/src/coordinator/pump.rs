@@ -7,7 +7,7 @@ use super::requests::{kick, rest_ms, trimmed};
 use super::rules::{intro_line, rules, write_rules};
 use super::state::{change, dir_of, get, home, pumping};
 use super::who::{choice, OFF_WORDS};
-use crate::agents::{adapter, installed, start};
+use crate::agents::{adapter, installed, start, start_failed};
 use crate::clock::now;
 use crate::err::Res;
 use crate::herdr::cli::{session_name, socket_exists};
@@ -21,7 +21,7 @@ use crate::submit::{confirm, hand, look, settle, shown};
 use std::collections::HashSet;
 use std::path::Path;
 
-const UNSENT: &str = "your message sits unsent in its box. Go into it and press enter.";
+use crate::status_words::COORDINATOR_UNSENT as UNSENT;
 fn up(socket: &str) -> bool { crate::herdr::cli::fake().is_some() || socket_exists(socket) }
 fn mine(c: &Obj) -> bool { c.at("pump").i("pid") == std::process::id() as i64 }
 fn said_in(socket: &str, mark: &Value, text: &str) -> Option<bool> {
@@ -52,14 +52,21 @@ pub fn tick(socket: &str) {
     if c.b("error") && !c.b("want") { return; } // a start that failed is not tried again by itself
     if due(&format!("coordinator-{}", session_name(socket)), 3000) { kick(socket); }
 }
-/// The conversation it is in: the newest one saved in its folder since this Coordinator began.
+/// The conversation it is in: the newest one saved in its folder since this Coordinator began; for a program whose
+/// files the board does not read, the one herdr's integration names for its pane.
 pub fn active(socket: &str, c: &Obj) -> Option<String> {
     let Some(run) = c.o("run") else { return c.so("session").map(String::from) };
     let since = if c.b("since") { c.i("since") } else { c.i("startedAt") };
     let h = home(socket);
-    let id = adapter::latest_session(run.s("kind"), &h, since, moved_from(&h).as_deref());
+    let id = adapter::latest_session(run.s("kind"), &h, since, moved_from(&h).as_deref()).or_else(|| told_session(socket, c));
     if let Some(i) = &id { if i != c.s("session") { let (since_v, i2) = (c.at("since").clone(), i.clone()); let _ = change(socket, |x| { if *x.at("since") != since_v || x.s("session") == i2 { return false; } x.put("session", i2.clone()); true }); } }
     id.or_else(|| c.so("session").map(String::from))
+}
+/// The conversation herdr's integration names for the Coordinator's pane, if any.
+fn told_session(socket: &str, c: &Obj) -> Option<String> {
+    if !c.b("pane") || !up(socket) { return None; }
+    let a = Herdr::new(Some(socket.into())).agent_get(c.s("pane")).ok().flatten()?;
+    Some(a.at("agent_session").t("value")).filter(|s| !s.is_empty())
 }
 fn ensure(api: &Herdr, socket: &str) -> Res<(Obj, bool)> {
     let mut c = get(socket).unwrap_or_default();
@@ -80,7 +87,8 @@ fn ensure(api: &Herdr, socket: &str) -> Res<(Obj, bool)> {
     let run = match c.o("run").cloned().or_else(|| c.o("pick").cloned().map(|mut p| { p.put("oneOff", true); p })).or_else(choice) { Some(r) => r, None => crate::fail!("{OFF_WORDS}") };
     let k = run.t("kind");
     if !installed::installed(&k) { crate::fail!("\"{k}\" is not installed here, so it cannot be the Coordinator."); }
-    let resume = if c.b("run") && c.b("session") && !adapter::resume_args(&k, "x").is_empty() && adapter::transcript(&k, c.s("session"), &home(socket)).is_some() { Some(c.t("session")) } else { None };
+    let saved = !crate::agents::kinds::kind(&k).map(|a| a.reads_turn).unwrap_or(false) || adapter::transcript(&k, c.s("session"), &home(socket)).is_some();
+    let resume = if c.b("run") && c.b("session") && !adapter::resume_args(&k, "x").is_empty() && saved { Some(c.t("session")) } else { None };
     let session = if resume.is_none() { adapter::new_session(&k) } else { None };
     // The rules ride on no launch flag: the program reads them from its folder, so they are told once.
     let (_, reads) = write_rules(&home(socket), &k, &text)?;
@@ -95,9 +103,15 @@ fn ensure(api: &Herdr, socket: &str) -> Res<(Obj, bool)> {
     let args = start::start_args(&k, &start::StartOpts { model: run.t("model"), effort: run.t("effort"), access: if run.b("access") { run.t("access") } else { "full".into() }, fast: run.b("fast").then_some(true), resume: resume.clone().unwrap_or_default(), session: session.clone().unwrap_or_default(), ..Default::default() })?;
     let mut blocked = false;
     match api.agent_start(&name, &k, pane.s("pane_id"), &args, 60000) {
-        Ok(_) => { settle(api, pane.s("pane_id"), &std::iter::once(k.clone()).chain(args).collect::<Vec<_>>().join(" ")); }
+        Ok(_) => { settle(api, pane.s("pane_id"), &std::iter::once(crate::agents::kinds::program(&k).to_string()).chain(args).collect::<Vec<_>>().join(" ")); }
         Err(e) if e.code == "agent_not_ready" => blocked = true, // a dialog is in the way: what you said waits
-        Err(e) => { if let Some(c) = get(socket) { close_place(api, &c); } let _ = change(socket, |c| { nowhere(c); c.put("starting", 0); true }); return Err(e.into()); }
+        Err(e) => {
+            // Why, in plain words, read from its terminal before its tab is closed; the whole account goes in its log.
+            let why = start_failed::say(api, &start_failed::Start { kind: &k, setting: "coordinator.agent", again: "send your message again" }, pane.s("pane_id"), &e.message, &dir_of(socket).join("start.log"));
+            if let Some(c) = get(socket) { close_place(api, &c); }
+            let _ = change(socket, |c| { nowhere(c); c.put("starting", 0); true });
+            crate::fail!("{why}");
+        }
     }
     let version = installed::version_of(&k);
     c = change(socket, |c| {
@@ -126,7 +140,8 @@ fn run_pump(socket: &str, taken: &mut HashSet<String>) -> Res<()> {
         let mut c = get(socket).unwrap_or_default();
         if let Some(w) = c.o("want").cloned() {
             taken.insert(w.t("at"));
-            if w.s("what") != "open" { close_place(&api, &c); }
+            // Its conversation is known before its terminal goes: a restart reopens it.
+            if w.s("what") != "open" { if c.b("run") { active(socket, &c); c = get(socket).unwrap_or(c); } close_place(&api, &c); }
             let _ = change(socket, |c| {
                 if c.at("want").at("at") == w.at("at") { c.put("want", Value::Null); }
                 if w.s("what") == "open" { return true; }

@@ -1,4 +1,13 @@
-# What was checked on herdr 0.9.3
+# What was checked on Herdr 0.9.3
+
+**You do not need this page to use the board.** It is the lab notebook behind it: each row is one thing about Herdr
+(or an agent program running in Herdr) that the board relies on, and what a real test on Herdr 0.9.3 showed. Other
+pages link here for the proof. Look a fact up by the words in its first column.
+
+The last section, [missing in Herdr](#missing-in-herdr), lists what Herdr would need for the board's popup to work like
+Herdr's own menu.
+
+## The facts
 
 | Fact | Result |
 |---|---|
@@ -31,6 +40,12 @@
 | Claude and Codex in a brand-new worktree with full access | both show a trust dialog, once per repository; pre-trusting removes it |
 | Codex after a reply | reported `done` here; the closing note also covers `unknown` |
 | `herdr machine list --json` with a saved machine (seen 2026-10-13) | each entry has `id`, `label`, `target` (`ssh://user@host:port` as given to `herdr machine add`), `session` (`default`), `enabled` and `selected`. The list is kept in `$XDG_STATE_HOME/herdr/client/endpoints.json`, not in the config folder. `herdr machine add` refuses a remote server that was started as `herdr server` in the foreground ("not ready for saved machines") and takes one started the normal way |
+| Codex before 0.156.0 under `herdr agent start` (seen 2026-10-15, herdr 0.9.3, codex 0.153.4 to 0.156.0 from npm) | 0.155.1 and older have no `--no-daemon` (0.156.0 is the first): codex prints `error: unexpected argument '--no-daemon' found` and quits, the pane is back at its shell, and `agent start` waits out its `--timeout` and answers `timeout`, "timed out waiting for agent startup". Started without the flag, 0.153.4 comes up in the pane and shows its update dialog (`agent_not_ready`, blocked) |
+| herdr's other programs under `herdr agent start --kind <name> -- <the board's flags>` (seen 2026-10-15, herdr 0.9.3, a private session; each program its own version: agy 1.3.6, copilot 1.0.98, cursor-agent 2026.10.01, devin 3000.11.92, droid 0.242.0, grok 1.0.52, hermes 0.19.0, kimi 2.2.0, omp 18.11.1, opencode 1.18.34, qwen 0.25.2) | each came up in about 3.5 s and none quit on an argument ([agents](agents.md)). None was logged in or set up: herdr read a login or first-setup page as `idle` (agy, cursor, devin, grok, hermes, omp), and so the folder-trust dialogs of droid and kimi; copilot's was `blocked` |
+| kilo 7.8.12 and qodercli 1.1.72 installed with npm, same session | their command is a node script that starts the real program as its child, and herdr does not find it: `agent start` waited out its timeout with the program running in the pane. kilo's own binary, on the PATH as `kilo`, came up in 3.4 s. Letta Code 0.34.15: herdr found it (`unknown`) and its first-run backend choice held it past the timeout |
+| omp 18.11.1 without herdr's integration for it | herdr finds it and says `idle` whatever it does: herdr's docs say its state needs the integration, so the board does not start it without one |
+| A task on droid 0.242.0 through the board (worker and reviewer droid, same session) | started with `--auto high --append-system-prompt-file <rules>` (its screen said `Auto (High) · allow all commands`), the first prompt went in, herdr's `done` with a new `completion_seq` ended the turn and the board took it as stopped without a summary: the account had no Droid subscription, so no model answered |
+| A long start command or message (tried 2026-10-15, herdr 0.9.3, a scratch herdr, Codex 0.162.1 and Claude Code 2.1.301) | `agent start` types the command into the pane's shell: a 7 KB `-c developer_instructions=…` went through when the shell was at its prompt, and was cut off at 4096 bytes when the shell was still running its start-up file (the shell then waits at `>`, and `agent start` answers "timed out waiting for agent startup"); a short command came up in the same slow shell. The interrupt character (`pane send-text <pane> $'\x03'`) clears the half-typed command. Codex given `developer_instructions` that only name a rules file reads the file before its first answer and follows it. `agent prompt` typed 4 KB, 22 KB and 111 KB messages into idle Claude Code and Codex, and each took it whole on its own enter; 186 KB cannot be handed to the `herdr` command at all ("Argument list too long": Linux takes at most 128 KiB in one argument) |
 
 Checked on 2026-10-09 for the turn-end hook and the keeper (herdr 0.9.3, Claude Code 2.1.296, Codex 0.160.0, pi 1.1.0),
 in a separate scratch herdr:

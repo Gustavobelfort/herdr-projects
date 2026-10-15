@@ -8,7 +8,7 @@ pub fn has_fast(k: &str) -> bool { kind(k).map(|a| a.fast).unwrap_or(false) }
 /// The effort a program is really given: none for `default`, and none for a level it does not accept.
 pub fn effort_for(k: &str, effort: &str) -> String {
     if effort.is_empty() || effort == "default" { return String::new(); }
-    match kind(k) { Some(a) if !a.efforts.is_empty() && !a.efforts.contains(&effort) => String::new(), _ => effort.to_string() }
+    match kind(k) { Some(a) if a.effort.is_empty() || (!a.efforts.is_empty() && !a.efforts.contains(&effort)) => String::new(), _ => effort.to_string() }
 }
 /// The flags of `<role>.access` for this program. A program that cannot ask is never started as if it could.
 pub fn access_args(k: &str, access: &str) -> Res<Vec<String>> {
@@ -26,16 +26,24 @@ pub struct StartOpts { pub model: String, pub effort: String, pub fast: Option<b
 /// conversation; `session` names a new one; `extra` are the hook and standing-rule arguments; `plan` replaces the
 /// access flags with the program's own plan mode.
 pub fn start_args(k: &str, o: &StartOpts) -> Res<Vec<String>> {
-    let mut out = vec![];
+    let mut out: Vec<String> = kind(k).map(|a| super::kinds::fill(a.lead, "")).unwrap_or_default(); // `hermes chat`
     if !o.resume.is_empty() { out.extend(resume_args(k, &o.resume)); } // first: Codex's `resume` is a subcommand
-    if o.resume.is_empty() && !o.session.is_empty() { out.extend(session_args(k, &o.session)); }
+    if o.resume.is_empty() { out.extend(session_args(k, &o.session)); out.extend(fresh_args(k)); }
     match &o.plan { Some(p) => out.extend(p.iter().cloned()), None => out.extend(access_args(k, if o.access.is_empty() { "full" } else { &o.access })?) }
     if !o.model.is_empty() { out.extend(model_args(k, &o.model)); }
     let level = effort_for(k, &o.effort);
     if !level.is_empty() { out.extend(effort_args(k, &level)); }
     if let Some(f) = o.fast { out.extend(fast_args(k, f)); }
     out.extend(o.extra.iter().cloned());
-    Ok(out)
+    let left_out = too_new(k);
+    Ok(out.into_iter().filter(|a| !left_out.contains(&a.as_str())).collect())
+}
+/// The board's arguments the installed version of this program does not take yet (kinds.rs `since`). A version that
+/// cannot be read is taken to be new.
+pub fn too_new(k: &str) -> Vec<&'static str> {
+    let Some(a) = kind(k).filter(|a| !a.since.is_empty()) else { return vec![] };
+    let v = super::installed::version_of(k);
+    a.since.iter().filter(|(_, first)| !v.is_empty() && !super::installed::at_least(&v, first)).map(|(arg, _)| *arg).collect()
 }
 /// What a role is started as, from its five settings.
 #[derive(Clone, Debug, Default)]

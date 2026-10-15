@@ -43,14 +43,15 @@ pub fn world_with(o: Opts) -> World {
     for (k, v) in [("HOME", b("home")), ("HERDR_PROJECTS_HOME", b("sw")), ("HERDR_SOCKET_PATH", socket.clone()), ("XDG_CONFIG_HOME", b("home/.config")), ("XDG_STATE_HOME", b("home/.state")),
         ("CLAUDE_CONFIG_DIR", b("claude")), ("CODEX_HOME", b("codex")), ("PI_CODING_AGENT_DIR", b("pi")), ("HERDR_PROJECTS_CLAUDE_JSON", b("claude.json")), ("HERDR_PROJECTS_CODEX_TOML", b("codex.toml"))] { set(k, &v); }
     for (k, v) in [("HERDR_PROJECTS_INLINE", "1"), ("HERDR_PROJECTS_SETTLE_MS", "0"), ("HERDR_PROJECTS_PR_LAG_MS", "0"), ("HERDR_PROJECTS_READY_STEP_MS", "0"), ("HERDR_PROJECTS_POLL_MS", "20"),
-        ("HERDR_PROJECTS_NO_KEEPER", "1"), ("HERDR_PROJECTS_NO_HOOK", "1"), ("HERDR_PROJECTS_READ_MS", "0"), ("HERDR_PROJECTS_REVIEW_MS", "120000"), ("HERDR_PROJECTS_NO_SERVER", "1"), ("HERDR_PROJECTS_LINKS", "local"),
+        ("HERDR_PROJECTS_NO_KEEPER", "1"), ("HERDR_PROJECTS_NO_HOOK", "1"), ("HERDR_PROJECTS_NO_MODEL_LIST", "1"), ("HERDR_PROJECTS_READ_MS", "0"), ("HERDR_PROJECTS_REVIEW_MS", "120000"), ("HERDR_PROJECTS_NO_SERVER", "1"), ("HERDR_PROJECTS_LINKS", "local"),
         ("HERDR_BIN_PATH", "/bin/false"), ("GIT_AUTHOR_NAME", "tester"), ("GIT_AUTHOR_EMAIL", "t@test"), ("GIT_COMMITTER_NAME", "tester"), ("GIT_COMMITTER_EMAIL", "t@test"), ("GIT_CONFIG_GLOBAL", "/dev/null"), ("GIT_CONFIG_NOSYSTEM", "1")] { set(k, v); }
     let data = sw::store::files::data_dir();
     let config = sw::store::files::config_dir();
     std::fs::create_dir_all(&data).unwrap(); std::fs::create_dir_all(&config).unwrap();
-    // The agent programs count as installed, without being run for their version.
+    // Every agent program counts as installed, without being run for its version.
     let now = sw::clock::now();
-    std::fs::write(data.join("versions.json"), json!({ "claude": { "v": "9.9.9", "at": now, "found": true }, "codex": { "v": "9.9.9", "at": now, "found": true }, "pi": { "v": "9.9.9", "at": now, "found": true } }).to_string()).unwrap();
+    let versions: serde_json::Map<String, Value> = sw::agents::kinds::all().map(|k| (k.name.to_string(), json!({ "v": "9.9.9", "at": now, "found": true }))).collect();
+    std::fs::write(data.join("versions.json"), Value::Object(versions).to_string()).unwrap();
     let mut settings = json!({ "watcher.agent": "none", "coordinator.agent": "none" });
     for (k, v) in o.settings.as_object().cloned().unwrap_or_default() { settings[k] = v; }
     std::fs::write(config.join("config.json"), settings.to_string()).unwrap();
