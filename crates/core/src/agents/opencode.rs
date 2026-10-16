@@ -17,20 +17,27 @@ use std::process::{Command, Stdio};
 // ---- the launch file -----------------------------------------------------------------------------------------------
 /// The permission rules of a role, laid over OpenCode's own (its `read *.env: ask` among them): `full` is OpenCode's
 /// --auto, and the config says nothing, so its own rules stand; `ask` asks before an edit, a command, a fetch and anything
-/// outside the folder, as the Coordinator does on Claude Code. Never a catch-all `allow`: that would come after
+/// outside the folder, and before a tool of an MCP server acts, as the Coordinator does on Claude Code. Never a catch-all `allow`: that would come after
 /// OpenCode's own rules and override them, and an agent in `ask` mode would read a secrets file without asking.
 fn rules(access: &str) -> Value {
-    let rule = |action: &str| json!({ "action": action, "resource": "*", "effect": "ask" });
-    if access == "ask" { json!([rule("edit"), rule("shell"), rule("webfetch"), rule("external_directory")]) } else { json!([]) }
+    let rule = |action: &str, resource: &str, effect: &str| json!({ "action": action, "resource": resource, "effect": effect });
+    if access != "ask" { return json!([]); }
+    // Handing work to an agent of a repo's own would run it on that agent's rules: asked first, unless it is one of
+    // OpenCode's (which carry the ask rules themselves). The last matching rule wins.
+    let mut r = vec![rule("edit", "*", "ask"), rule("shell", "*", "ask"), rule("webfetch", "*", "ask"), rule("external_directory", "*", "ask"), rule("mcp", "*", "ask"), rule("task", "*", "ask")];
+    r.extend(SUBAGENTS.iter().map(|a| rule("task", a, "allow")));
+    Value::Array(r)
 }
 /// OpenCode's agents: the two a conversation runs as, the three it hands work to, the three it uses by itself. An
 /// agent's own rules (`agents.<name>.permissions`) come after the top-level ones, so a repo's config could give one of
 /// them `shell: allow` and cancel the ask rules: the rules are written for each agent too (an agent a repo adds under
 /// another name gets the top-level ones, which it then overrides only by naming them).
 const AGENTS: &[&str] = &["build", "plan", "general", "explore", "scout", "compaction", "title", "summary"];
+/// The three a conversation hands work to.
+const SUBAGENTS: &[&str] = &["general", "explore", "scout"];
 /// The file one start is given: the model with its effort as its variant (what a new conversation runs on, and what a
 /// reopened one is switched to; none named: OpenCode's own default), the role's permission rules (at the top and for
-/// each of OpenCode's agents), and no self-update
+/// each of OpenCode's agents, the conversation pinned to `build`), and no self-update
 /// under a running agent. A model of an OpenAI-compatible gateway that OpenCode's config does not list by name is
 /// declared here under its provider (OpenCode runs only the models its config names; the user's config is not touched).
 /// Mode 0600, in the folder named.
@@ -40,6 +47,9 @@ pub fn launch_file(dir: &Path, role: &str, model: &str, effort: &str, access: &s
     if !r.as_array().map(|a| a.is_empty()).unwrap_or(true) {
         cfg.put("permissions", r.clone());
         cfg.put("agents", Value::Object(AGENTS.iter().map(|n| (n.to_string(), json!({ "permissions": r }))).collect()));
+        // A repo's config could name a primary agent of its own, with its own rules, as the one a conversation runs as:
+        // the conversation runs as OpenCode's own `build`, which carries the ask rules.
+        cfg.put("default_agent", "build");
     }
     if let Some(m) = model_arg(model, effort) { cfg.put("model", m); }
     if let Some((provider, id)) = gateway_model(model) { cfg.put("providers", json!({ provider: { "models": { id.clone(): { "name": id } } } })); }

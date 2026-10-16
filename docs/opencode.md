@@ -34,13 +34,15 @@ not name, that one model entry:
 | `<role>.access` | What the file says | And on the command line |
 |---|---|---|
 | `full` | nothing: OpenCode's own rules stand | `--auto` |
-| `ask` | ask before an edit, a shell command, a fetch and anything outside the folder, at the top and for each of OpenCode's agents | nothing |
+| `ask` | ask before an edit, a shell command, a fetch, anything outside the folder, a tool of an MCP server, and handing work to any agent but OpenCode's own three; at the top and for each of OpenCode's agents; the conversation runs as OpenCode's `build` | nothing |
 
 The config's rules come after OpenCode's own (among them: ask before reading a `.env` file), so it never writes a
-catch-all `allow`: that would override those and let an agent in `ask` mode read a secrets file without asking. An
-agent's own rules (`agents.build.permissions`, say) come after the top-level ones, so a repo's config could give an
-agent `shell: allow` and cancel the ask; the ask rules are written for each of OpenCode's agents too (`build`, `plan`,
-`general`, `explore`, `scout`, and the three it uses by itself).
+catch-all `allow`: that would override those and let an agent in `ask` mode read a secrets file without asking. A
+repo's own `opencode.json` is read before the board's config, but an agent's own rules (`agents.build.permissions`,
+say) come after the top-level ones, so the ask rules are written for each of OpenCode's agents too (`build`, `plan`,
+`general`, `explore`, `scout`, and the three it uses by itself); and a repo could make a primary agent of its own, with
+its own rules, the default, so the conversation is pinned to `build` and handing work to any other agent than
+OpenCode's three asks first.
 
 So a Coordinator with `coordinator.access ask` asks in its own pane before it acts, as it does on Claude Code. The
 program is started by a command typed at the pane's shell (`env OPENCODE_CONFIG_CONTENT="$(cat …)" opencode …`), the way a plan's
