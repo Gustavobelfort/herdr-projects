@@ -184,7 +184,7 @@ The tables below always show the chords the board comes with.
 | `Enter` | send what you typed; with nothing typed, open the task's agent: its real herdr pane. The board keeps running in its own tab and is there as you left it; your key goes back to it (as a popup it closes, and your key opens it again where it was). On an automation's row: open the automation, whole ([automations.md](automations.md)). On a heading (a machine, a repo, a status group): fold it to its one line, which says how many tasks it holds, and unfold it; its caret says which it is, `▾` open, `▸` folded ([list-headings.md](list-headings.md)) |
 | `Space` | flip who you talk to: the selected task's agent, and back to the Coordinator. The chat says who. Nothing else changes it: while it is a task's agent, moving with `↑` `↓` makes it the agent of the task you moved to. On a task with no agent, your message puts one on it. On a machine's or a repo's heading: that machine's or repo's own coordinator. On an automation's row: turn the automation on or off |
 | `Tab` | put an agent on the task. With text typed for the Coordinator: send it, and every task it adds from that message gets an agent at once, with nothing more to confirm (a message that adds no task delegates nothing). On an automation's row: fire the automation now |
-| `Esc` | back, one step at a time, and nothing else: find is left, a draft is put away, then the whole task, the filter and the archive close, then the chat's latest message is hidden, as `Alt+C` hides it. With none of those left it shows the same hint as `Ctrl+C`; the board as a popup (`board.open`) closes on it. It never shows the chat and never changes who you talk to |
+| `Esc` | back, one step at a time, and nothing else: find is left, a draft is put away, then the whole task, the filter and the archive close, then the chat's latest message is hidden, as `Ctrl+Alt+C` hides it. With none of those left it shows the same hint as `Ctrl+C`; the board as a popup (`board.open`) closes on it. It never shows the chat and never changes who you talk to |
 | `?` | the menu: every key in these three groups, each line with its key. A ctrl or alt line can be picked with `↑` `↓` and `Enter`, which does what its key does. It opens with no line picked. Under the keys, what a row shows: each mark with its word, the numbers on the right, and what the colour of a review tag and of a pull request say. Every line is whole (a long one wraps); where the window is too short for all of it the last line says how many lines are below, and `↓` on the last key scrolls on down, `↑` on the first scrolls up |
 | `y` `n` | answer a question the board asks: `y` yes, `n` or `Esc` no. Only while a question is up; `Enter` never confirms |
 
@@ -208,14 +208,14 @@ The tables below always show the chords the board comes with.
 
 | Key | Shows or hides |
 |---|---|
-| `Alt+C` | the chat's latest message, the Coordinator's or a task agent's. The one key for it, both ways |
-| `Alt+K` `Alt+J` | more of a chat message that is longer than its box: `Alt+K` scrolls it up, `Alt+J` down, half a box at a time, also while you type. Up opens the box to the conversation before the newest message, each press further up; it stays open, whatever comes meanwhile, until `Alt+J` at its end goes back to the newest message (`Alt+C` hides and shows the whole chat; talking to another starts it at the newest too). The box says where there is more, and names the key (`alt+k more ↑`, `alt+j more ↓`). The mouse wheel does the same with the pointer over the chat ([mouse.md](mouse.md)) |
-| `Alt+P` | the side panel: the selected task or automation, beside the list |
-| `Alt+T` | the whole task (on an automation's row: the whole automation), full screen, and back to the list |
-| `Alt+A` | the archive, and back to the board |
-| `Alt+S` | the list grouped by repo, each group under its repo's name (a row's tag never names a repo), or by status |
-| `Alt+D` | every done task, or only the latest |
-| `Alt+M` | other machines: this machine only, every machine, then each machine by itself |
+| `Ctrl+Alt+C` | the chat's latest message, the Coordinator's or a task agent's. The one key for it, both ways. `Alt+C` does the same |
+| `Ctrl+Alt+K` `Ctrl+Alt+J` | more of a chat message that is longer than its box: `Ctrl+Alt+K` scrolls it up, `Ctrl+Alt+J` down, half a box at a time, also while you type. Up opens the box to the conversation before the newest message, each press further up; it stays open, whatever comes meanwhile, until `Ctrl+Alt+J` at its end goes back to the newest message (`Ctrl+Alt+C` hides and shows the whole chat; talking to another starts it at the newest too). The box says where there is more, and names the key (`ctrl+alt+k more ↑`, `ctrl+alt+j more ↓`). The mouse wheel does the same with the pointer over the chat ([mouse.md](mouse.md)). `Alt+K` does the same |
+| `Ctrl+Alt+P` | the side panel: the selected task or automation, beside the list. `Alt+P` does the same |
+| `Ctrl+Alt+T` | the whole task (on an automation's row: the whole automation), full screen, and back to the list. `Alt+T` does the same |
+| `Ctrl+Alt+A` | the archive, and back to the board. `Alt+A` does the same |
+| `Ctrl+Alt+S` | the list grouped by repo, each group under its repo's name (a row's tag never names a repo), or by status. `Alt+S` does the same |
+| `Ctrl+Alt+D` | every done task, or only the latest. `Alt+D` does the same |
+| `Ctrl+Alt+M` | other machines: this machine only, every machine, then each machine by itself. `Alt+M` does the same |
 
 **The text box's own** (not a key of the board, and not in the `?` menu)
 

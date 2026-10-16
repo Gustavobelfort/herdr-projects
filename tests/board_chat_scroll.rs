@@ -43,7 +43,7 @@ impl B {
         let top = lines.iter().rposition(|l| has(l, "^╭─.*╮$")).expect("a box");
         let end = lines.iter().rposition(|l| has(l, "^╰─+╯$")).expect("a box's end");
         let inside: Vec<String> = lines[top + 1..end].iter().map(|l| { let c: Vec<char> = l.chars().collect(); c[2..c.len() - 2].iter().collect::<String>().trim_end().to_string() }).collect();
-        let at = inside.iter().rposition(|l| has(l, r"^( *((alt\+j )?more )?↓)?$")).unwrap();
+        let at = inside.iter().rposition(|l| has(l, r"^( *((ctrl\+alt\+j )?more )?↓)?$")).unwrap();
         let message: Vec<String> = inside[..at].iter().filter(|l| !l.starts_with("Coordinator")).cloned().collect();
         Chat { up: lines[top].contains("more ↑") || lines[top].contains('↑'), down: inside[at].contains('↓'), draft: inside[at + 1..].to_vec(), message, top, end, lines }
     }

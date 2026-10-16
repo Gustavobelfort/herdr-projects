@@ -21,7 +21,7 @@ fn a_moved_key_answers_to_your_chord_only_and_the_board_names_it_so() {
     w.script(json!({ "worker": [{ "files": { "f.txt": "1\n" }, "commit": "1", "note": "Made f." }] }));
     let id = w.add("Make f");
     delegate(&id); settle(&id);
-    assert_eq!(key_name("chatMessage"), "alt+c");
+    assert_eq!(key_name("chatMessage"), "ctrl+alt+c");
     assert_eq!(set("chatMessage = Ctrl+O, chatScrollUp=ctrl+up chatScrollDown=ctrl+down").unwrap().lines().next().unwrap(), "board.keys: chatMessage=ctrl+o, chatScrollUp=ctrl+up, chatScrollDown=ctrl+down  (you)");
     assert_eq!((key_name("chatMessage"), key_name("chatScrollUp")), ("ctrl+o".to_string(), "ctrl+up".to_string()));
     assert!(is(&Press::chord("ctrl+o"), K::ChatMessage) && !is(&Press::chord("alt+c"), K::ChatMessage));
@@ -40,7 +40,7 @@ fn a_moved_key_answers_to_your_chord_only_and_the_board_names_it_so() {
     assert!(!t.contains("alt+c"), "{t}");
     // Taken away, the key is its own again.
     settings_command("unset", &["unset".into(), "board.keys".into()], &you(), None).unwrap();
-    assert_eq!(key_name("chatMessage"), "alt+c");
+    assert_eq!(key_name("chatMessage"), "ctrl+alt+c");
     assert!(is(&Press::chord("alt+c"), K::ChatMessage));
 }
 
@@ -49,7 +49,7 @@ fn a_chord_that_clashes_is_refused_naming_the_key_it_clashes_with() {
     let _w = world();
     let e = set("chatMessage=ctrl+l").unwrap_err();
     assert!(e.contains("chatMessage=ctrl+l: ctrl+l is yes's key already. Move yes too, or choose another") && e.ends_with("Nothing was changed."), "{e}");
-    assert_eq!(key_name("chatMessage"), "alt+c");
+    assert_eq!(key_name("chatMessage"), "ctrl+alt+c");
     assert!(set("stop=ctrl+q, archive=ctrl+q").unwrap_err().contains("archive=ctrl+q is the same chord"));
     // Moving the other one too frees its chord, in either order.
     set("undo=ctrl+c, close=ctrl+q").unwrap();
@@ -77,8 +77,8 @@ fn a_chord_that_clashes_is_refused_naming_the_key_it_clashes_with() {
 fn it_is_yours_only_a_hand_written_mistake_is_left_out_and_the_page_keeps_the_built_in_chords() {
     let w = world_with(Opts { repo: true, settings: json!({ "board.keys": "chatMessage=ctrl+l, side=alt+o" }), ..Default::default() });
     let page = sw::board::remap::as_built(|| sw::board::keys::key_name("side"));
-    assert_eq!(page, "alt+p");
-    assert_eq!((key_name("side"), key_name("chatMessage")), ("alt+o".to_string(), "alt+c".to_string()), "the pair that clashes is left out");
+    assert_eq!(page, "ctrl+alt+p");
+    assert_eq!((key_name("side"), key_name("chatMessage")), ("alt+o".to_string(), "ctrl+alt+c".to_string()), "the pair that clashes is left out");
     let (j, shown) = settings_command("show", &["show".into()], &you(), None).unwrap();
     assert!(shown.contains("Your keys not counted (the key keeps its own chord):\n  board.keys: chatMessage=ctrl+l: ctrl+l is yes's key already"), "{shown}");
     assert!(j.to_string().contains("ctrl+l is yes's key already"));

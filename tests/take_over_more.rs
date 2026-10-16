@@ -128,6 +128,8 @@ fn real_programs_herdr_superworks_own_processes_are_stopped_and_no_other() {
     let old = w.base.join("old/herdr-superwork");
     std::fs::create_dir_all(old.parent().unwrap()).unwrap();
     std::fs::copy("/bin/sleep", &old).unwrap();
+    // macOS kills a copied system binary (signal 9) until it is signed again.
+    if cfg!(target_os = "macos") { assert!(std::process::Command::new("codesign").args(["-s", "-", "--force"]).arg(&old).status().unwrap().success()); }
     let keeper = std::process::Command::new(&old).arg("30").spawn().unwrap();
     let mut other = std::process::Command::new("/bin/sleep").arg("30").spawn().unwrap();
     let mark = |c: &std::process::Child| { let pid = c.id() as i64; serde_json::json!({ "pid": pid, "start": sw::store::files::proc_start(pid) }).to_string() };

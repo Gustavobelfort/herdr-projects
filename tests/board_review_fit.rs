@@ -40,19 +40,19 @@ fn a_short_window_the_settings_outlast_every_text_and_the_status_stays_whole() {
         assert_eq!(more.map(String::as_str), if fit == 24 { Some(" 7 more settings · ctrl+e shows them") } else if fit == 20 { Some(" 13 more settings · ctrl+e shows them") } else { None }, "how many settings have no room, {at}");
         assert_eq!(lines.iter().any(|l| l == " Settings ──────────────────────────────────"), !kept.is_empty(), "the settings keep their headline while one of them is there, {at}");
         assert_eq!(lines.iter().any(|l| l == " Description ───────────────────────────────"), fit >= 40, "the description {at}");
-        assert_eq!(lines.iter().any(|l| l == " Description · alt+t shows it"), fit == 30, "one line for the description {at}");
+        assert_eq!(lines.iter().any(|l| l == " Description · ctrl+alt+t shows it"), fit == 30, "one line for the description {at}");
         assert!(!lines.iter().any(|l| l.starts_with(" The agent said")), "what the agent said gives way before a setting does, {at}");
         assert_eq!(lines.iter().any(|l| l.starts_with(" Review 3     ✓ 4/5, says merge")), fit > 6, "the latest review {at}");
         assert_eq!(lines.iter().any(|l| l == "              Fine now."), fit == 16, "the review's summary {at}");
         assert_eq!(lines.iter().any(|l| l == " Status ────────────────────────────────────"), fit >= 12, "the headline {at}");
         assert_eq!(lines.iter().any(|l| l.starts_with(" #1 Build a flying game")), fit >= 6, "the title {at}");
         assert!(!lines.iter().any(|l| has(l, r"^[ ▌] {13}") && l.ends_with('…')) && !lines.iter().any(|l| SETTINGS.iter().any(|k| l.starts_with(&format!(" {k} "))) && l.ends_with('…')), "no fact is cut with an ellipsis, {at}");
-        assert_eq!(lines.last().map(String::as_str), Some(" alt+t shows the whole task"), "{at}");
+        assert_eq!(lines.last().map(String::as_str), Some(" ctrl+alt+t shows the whole task"), "{at}");
     }
     // shorter than the status and that text with the last line: the last line goes, not a word of the text; then the
     // progress, then the state; only a text longer than the panel is cut, and says so
     let mut at = |fit| v.panel(&busy, 45, false, fit);
-    assert_eq!(at(5), vec![STATE, PROGRESS, NOW[0], NOW[1], " alt+t shows the whole task"]);
+    assert_eq!(at(5), vec![STATE, PROGRESS, NOW[0], NOW[1], " ctrl+alt+t shows the whole task"]);
     assert_eq!(at(4), vec![STATE, PROGRESS, NOW[0], NOW[1]]);
     assert_eq!(at(3), vec![STATE, NOW[0], NOW[1]]); assert_eq!(at(2), NOW.to_vec());
     assert_eq!(at(1), vec![" Now          Running the whole test suite …"]);

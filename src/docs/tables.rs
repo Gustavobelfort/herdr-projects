@@ -27,7 +27,7 @@ fn built_keys_table() -> Result<String, String> {
         for w in [k.help, k.hint, k.doc].into_iter().flatten() { key_words(w).map_err(|e| format!("crates/flow/src/board/keys.rs: in the key \"{}\": {e}", k.name))?; }
         if let Some(g) = k.group {
             if !GROUPS.iter().any(|(x, _)| *x == g) { return Err(format!("crates/flow/src/board/keys.rs: the key \"{}\" is in the group \"{g}\", which is none of plain, ctrl, alt", k.name)); }
-            if g != "plain" && !k.keys.iter().all(|c| c.starts_with(&format!("{g}+"))) { return Err(format!("crates/flow/src/board/keys.rs: the key \"{}\" is in the group \"{g}\" and is pressed with {}", k.name, k.keys.join(", "))); }
+            if g != "plain" && !k.keys.iter().all(|c| c.contains(&format!("{g}+"))) { return Err(format!("crates/flow/src/board/keys.rs: the key \"{}\" is in the group \"{g}\" and is pressed with {}", k.name, k.keys.join(", "))); }
         }
     }
     // Another chord for the same thing is named in its row (the shifted and "return" twins of a key are not).

@@ -70,7 +70,7 @@
                                                                                                   │  Settings ─────────────────────────────────────────────────
  ▾ working                                                                                        │  Reading its settings…
  ◐ #2     Max length for task titles                             40% 90m left                  1m │
-          Drafting                                                                                │  alt+t shows the whole task
+          Drafting                                                                                │  ctrl+alt+t shows the whole task
  ◇ #4     Max length for task titles                                                           1m │
           Starting                                                                                │
 ▌◐ #5     Max length for task titles                             60% 11m left                  1m │
@@ -98,7 +98,7 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ❯ Add a task
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-  Side panel on. alt+p hides it.
+  Side panel on. ctrl+alt+p hides it.
   enter open this task's agent · space talk to the agent · ctrl+x stop the agent · ? all keys
 == the whole task
  Task details  #5 "Max length for task titles"
@@ -175,15 +175,15 @@
    ctrl+c       twice: close the board
 
  alt: only shows or hides
-   alt+c        hide the chat's latest message
-   alt+k        scroll the chat's message up
-   alt+j        scroll the chat's message down
-   alt+p        show the side panel: this task, beside the list
-   alt+t        show the whole task, full screen
-   alt+a        show the archive
-   alt+s        group by repo: see which repo each task is in
-   alt+d        show all done
-   alt+m        show every machine's tasks (now: this machine)
+   ctrl+alt+c   hide the chat's latest message
+   ctrl+alt+k   scroll the chat's message up
+   ctrl+alt+j   scroll the chat's message down
+   ctrl+alt+p   show the side panel: this task, beside the list
+   ctrl+alt+t   show the whole task, full screen
+   ctrl+alt+a   show the archive
+   ctrl+alt+s   group by repo: see which repo each task is in
+   ctrl+alt+d   show all done
+   ctrl+alt+m   show every machine's tasks (now: this machine)
 
  on a row
    ◐            an agent works

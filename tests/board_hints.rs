@@ -51,10 +51,10 @@ fn with_an_agent_whose_agent_is_said_once_and_in_a_narrow_window_the_hints_give_
     assert_eq!(hints(&mut s, 60), "enter open this task's agent · ? all keys");
     assert_eq!(hints(&mut s, 36), "enter open this task's agent", "the main thing is the last to go");
     s.press(&["space"]);
-    assert_eq!(hints(&mut s, 120), "enter open this task's agent · ctrl+x stop the agent · alt+c hide the latest message · space back to the Coordinator");
+    assert_eq!(hints(&mut s, 126), "enter open this task's agent · ctrl+x stop the agent · ctrl+alt+c hide the latest message · space back to the Coordinator");
     assert_eq!(hints(&mut s, 100), "enter open this task's agent · ctrl+x stop the agent · space back to the Coordinator");
     s.press(&["alt+c"]);
-    assert_eq!(hints(&mut s, 100), "enter open this task's agent · alt+c show the latest message · space back to the Coordinator");
+    assert_eq!(hints(&mut s, 106), "enter open this task's agent · ctrl+alt+c show the latest message · space back to the Coordinator");
     s.press(&["alt+c"]);
     assert_eq!(hints(&mut s, 70), "enter open this task's agent · space back to the Coordinator");
     assert_eq!(hints(&mut s, 48), "space back to the Coordinator");
