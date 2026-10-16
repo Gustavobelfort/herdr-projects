@@ -78,7 +78,7 @@ fn nothing_is_changed_before_the_yes_what_gets_in_is_put_back_and_a_change_the_b
     // Its writer runs in the mount too, your checkout read-only inside it; your own files keep their permissions.
     assert_eq!(w.pane_of(&u).at("agent").at("boxed"), &json!(true));
     let root = w.root_str();
-    assert!(sw::plan::sandbox::boxed_command(&u, "x", "codex", &[]).contains(&format!("--ro-bind {root} {root} --die-with-parent -- codex")));
+    assert!(sw::plan::sandbox::boxed_command(&u, "x", "codex", &[], &[]).contains(&format!("--ro-bind {root} {root} --die-with-parent -- codex")));
     std::fs::write(w.root.join("a.txt"), "changed while waiting\n").unwrap();
     assert_eq!(sw::plan::untouched::put_back(&u), None);
     approve(&own);

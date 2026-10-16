@@ -66,7 +66,18 @@ pub fn pi_tokens(file: &Path, state: &Value) -> std::io::Result<Value> {
     }
     Ok(json!({ "at": at, "n": n }))
 }
+/// OpenCode writes each reply's own use on its row (the board's copy of it: agents/opencode.rs). The copy is written
+/// whole each time, so it is read from its start again (the count is small).
+pub fn opencode_tokens(file: &Path, _state: &Value) -> std::io::Result<Value> {
+    let (rows, at) = grown(file, 0)?;
+    let mut n = 0.0;
+    for r in rows {
+        let u = r.at("data").at("tokens");
+        if r.s("type") == "assistant" && u.is_object() { n += u.f("input") + u.f("output") + u.f("reasoning") + u.at("cache").f("read") + u.at("cache").f("write"); }
+    }
+    Ok(json!({ "at": at, "n": n }))
+}
 /// This program's counter, where it has one.
 pub fn tokens(kind: &str, file: &Path, state: &Value) -> Option<Value> {
-    match kind { "claude" => claude_tokens(file, state).ok(), "codex" => codex_tokens(file, state).ok(), "pi" => pi_tokens(file, state).ok(), _ => None }
+    match kind { "claude" => claude_tokens(file, state).ok(), "codex" => codex_tokens(file, state).ok(), "pi" => pi_tokens(file, state).ok(), "opencode" => opencode_tokens(file, state).ok(), _ => None }
 }

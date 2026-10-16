@@ -43,7 +43,7 @@ One long-lived chat that turns what you type into board commands, and can do any
 ## Every chat knows the board
 
 The plugin puts a small how-to in each installed agent program's own skills folder: a folder named `herdr-projects`
-holding `SKILL.md`, in `~/.claude/skills`, `~/.codex/skills` and `~/.pi/agent/skills`. So any ordinary chat can "add
+holding `SKILL.md`, in `~/.claude/skills`, `~/.codex/skills`, `~/.pi/agent/skills` and `~/.config/opencode/skills`. So any ordinary chat can "add
 this to the board" without being told how.
 
 - It gives the command by its full path, so it works without `herdr-projects` on your PATH.

@@ -11,7 +11,7 @@ use crate::shown::ink::{Ink, Inked};
 use crate::store::settings_list::{entry_of, Ty};
 
 /// The programs, as the page names them: every one herdr can start is taken (docs/agents.md lists them).
-const PROGRAMS: &str = "claude, codex, pi, agy, …";
+const PROGRAMS: &str = "claude, codex, pi, opencode, agy, …";
 
 /// What the selected row may be: a choice's words with the one it is now marked, or what to type.
 pub fn value_words(row: &Obj) -> String {

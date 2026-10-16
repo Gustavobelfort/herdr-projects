@@ -90,7 +90,7 @@ pub struct Turn {
     #[serde(skip_serializing_if = "Option::is_none")] pub file: Option<PathBuf>,
 }
 /// The provider's side of an error, decided once the turn is read.
-fn judge(mut t: Turn, code: &str, status: i64, auth_code: bool) -> Turn {
+pub(super) fn judge(mut t: Turn, code: &str, status: i64, auth_code: bool) -> Turn {
     if t.error.is_empty() { return t; }
     let pe = provider_error(&t.error, code, status);
     t.auth = auth_code || pe.auth || is_auth_failure(&t.error);
@@ -102,7 +102,7 @@ fn window_of(model: &str) -> Option<f64> {
     let known = ["claude-opus-4", "claude-sonnet-4", "claude-haiku-4", "claude-3"];
     known.iter().any(|p| model.starts_with(p)).then_some(200000.0)
 }
-fn usage_of(i: f64, o: f64, model: &str, window: Option<f64>) -> Option<Usage> { (i > 0.0 || o > 0.0).then(|| Usage { inp: i, out: o, context: i + o, window: window.or_else(|| window_of(model)) }) }
+pub(super) fn usage_of(i: f64, o: f64, model: &str, window: Option<f64>) -> Option<Usage> { (i > 0.0 || o > 0.0).then(|| Usage { inp: i, out: o, context: i + o, window: window.or_else(|| window_of(model)) }) }
 fn texts(content: &Value, types: &[&str]) -> String {
     match content { Value::String(s) => s.clone(), Value::Array(a) => a.iter().filter(|c| types.contains(&c.s("type"))).map(|c| c.t("text")).collect::<Vec<_>>().join(""), _ => String::new() }
 }
@@ -234,7 +234,7 @@ pub fn read_pi(file: &Path, bytes: u64) -> Option<Turn> {
 }
 /// The end of a conversation, by this program's reader.
 pub fn read_turn(kind: &str, file: &Path, bytes: u64) -> Option<Turn> {
-    match kind { "claude" => read_claude(file, bytes), "codex" => read_codex(file, bytes), "pi" => read_pi(file, bytes), _ => None }
+    match kind { "claude" => read_claude(file, bytes), "codex" => read_codex(file, bytes), "pi" => read_pi(file, bytes), "opencode" => super::read_opencode::read_opencode(file, bytes), _ => None }
 }
 /// A file whose name passes `test`, anywhere under a folder (a few levels deep), newest first.
 pub fn find_file(root: &Path, test: &dyn Fn(&str) -> bool, depth: usize) -> Vec<PathBuf> {

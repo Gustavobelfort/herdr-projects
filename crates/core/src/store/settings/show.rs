@@ -26,6 +26,8 @@ fn note(s: &Entry, r: &Found, task: Option<&Task>, scope: &Scope, no_repo: bool,
         match repo_keys().get(&repo) { Some(k) if *k == text(&r.value) => {}, Some(k) => return format!("not used: another repo has or had the same key; its tasks go by {k}"), None => return "not used: another repo has or had the same key".into() }
     }
     if s.name == "attempts.by" && task.map(|t| t.b("startedOnce")).unwrap_or(false) { return "its work has begun: counts when it is started afresh".into(); }
+    // OpenCode's effort is the model's variant: a word the model may not have, which the start then refuses.
+    if s.ty == Ty::Effort && text(&r.value) != "default" && agent_of(&get(&format!("{}.agent", s.name.split('.').next().unwrap_or("")))).kind == "opencode" { return "the model's variant: only if the model has one by that name".into(); }
     if s.name.ends_with(".fast") && r.value == json!(true) {
         let k = agent_of(&get(&format!("{}.agent", s.name.split('.').next().unwrap_or("")))).kind;
         if !k.is_empty() && !kind(&k).map(|a| a.fast).unwrap_or(false) { return format!("does nothing: {k} has no fast mode"); }

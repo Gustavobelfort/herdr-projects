@@ -39,13 +39,21 @@ pub fn end_turn(f: &F, pi: usize, prompt: &str, step: &Value) {
             open.push(json!({ "type": "message", "id": format!("u{seq}"), "timestamp": iso, "message": { "role": "user", "content": [{ "type": "text", "text": prompt }] } }));
             (file, id, open)
         }
+        // OpenCode keeps rows in a database; the board's copy of them is what its readers read (agents/opencode.rs),
+        // and the fake writes that copy as the board would have.
+        "opencode" => {
+            let id = arg(&["--session"]);
+            let file = sw::agents::opencode::mirror_file(&id);
+            (file, id, vec![json!({ "type": "user", "seq": seq, "at": now, "data": { "text": prompt, "time": { "created": now } } })])
+        }
         _ => return,
     };
     let lines = if step.b("ends") { fixture(step.s("ends")) } else { vec![] };
     if let Some(d) = file.parent() { let _ = std::fs::create_dir_all(d); }
     // A while after the prompt was sent, as the real ones are.
     let at = now + 1500;
-    let body: String = open.into_iter().chain(lines).enumerate().map(|(i, mut l)| { l["timestamp"] = json!(sw::clock::iso(at + i as i64)); format!("{l}\n") }).collect();
+    // Stamped as that program stamps its lines: OpenCode's copied rows carry `at` in milliseconds, the others a timestamp.
+    let body: String = open.into_iter().chain(lines).enumerate().map(|(i, mut l)| { if kind == "opencode" { l["at"] = json!(at + i as i64); } else { l["timestamp"] = json!(sw::clock::iso(at + i as i64)); } format!("{l}\n") }).collect();
     use std::io::Write;
     let _ = std::fs::OpenOptions::new().create(true).append(true).open(&file).and_then(|mut fh| fh.write_all(body.as_bytes()));
     if !step.b("hook") { return; }

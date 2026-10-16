@@ -1,0 +1,2 @@
+{"type": "assistant", "seq": 5, "at": 1792100272120, "data": {"id": "msg_1418d4f1e001Xd3nUf8Kwm6gq4", "time": {"created": 1792100272120, "completed": 1792100272188}, "agent": "build", "model": {"id": "claude-haiku-5-5", "providerID": "anthropic", "variant": "default"}, "content": [], "finish": "error", "error": {"type": "provider.auth", "message": "Invalid API key", "status": 401, "response": {"body": "{\"error\":\"Invalid API key\"}"}}}}
+{"type": "idle", "seq": 7, "at": 1792100272189, "data": {"time": {"created": 1792100272189}, "outcome": "failed"}}

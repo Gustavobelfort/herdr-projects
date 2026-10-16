@@ -71,7 +71,7 @@ fn without_a_read_only_mount_no_plan_is_written_in_a_repo_and_a_plan_said_not_sa
     assert!(!is_locked(&t));
     let mut open = t.clone(); open.put("plan", json!({ "asked": 1, "by": "you" }));
     let api = sw::herdr::Herdr::new(Some(w.socket.clone()));
-    assert!(sw::plan::sandbox::start_program(&api, &open, "x", "codex", "p", &[]).unwrap_err().message.contains("needs bubblewrap"), "nor an open plan step's writer, started again later");
+    assert!(sw::plan::sandbox::start_program(&api, &open, "x", "codex", "p", &[], &[]).unwrap_err().message.contains("needs bubblewrap"), "nor an open plan step's writer, started again later");
     // With the plan taken off it starts as any task does.
     delegate_with(&none, json!({ "plan.approve": "none" }));
     w.script(json!({ "worker": [{ "status": "working" }] }));

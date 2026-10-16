@@ -3,10 +3,11 @@
 //! repo as trusted in its own settings. One match per question, one arm per program (kinds.rs has the plain facts).
 use super::homes::*;
 use super::kinds::fill;
+use super::opencode;
 use super::read_turn::{find_file, head_of, when};
 use crate::err::Res;
 use crate::json::*;
-use crate::util::{shq, uuid};
+use crate::util::{random_hex, shq, uuid};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -17,12 +18,7 @@ fn hook_command(h: &Hook) -> Vec<String> {
     if h.role == "reviewer" { c.extend(["--round".to_string(), h.round.to_string()]); }
     c
 }
-fn write_private(file: &Path, text: &str) -> Res<()> {
-    use std::os::unix::fs::OpenOptionsExt;
-    let mut f = fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(file)?;
-    std::io::Write::write_all(&mut f, text.as_bytes())?;
-    Ok(())
-}
+use crate::store::files::write_private;
 /// Launch arguments that make the program call `turn-ended` at every turn end. None: no hook for it here.
 pub fn hook_args(kind: &str, h: &Hook) -> Res<Option<Vec<String>>> {
     match kind {
@@ -73,9 +69,10 @@ export default function (pi: any) {{
     }
 }
 pub fn has_hook(kind: &str) -> bool { matches!(kind, "claude" | "codex" | "pi") }
-/// A conversation id of the board's own choosing, where the program takes one (kinds.rs `session`).
+/// A conversation id of the board's own choosing, where the program takes one (kinds.rs `session`). OpenCode's must
+/// begin with `ses_`.
 pub fn new_session(kind: &str) -> Option<String> {
-    match kind { "pi" => Some(format!("sw-{}", &uuid()[..13])), k => super::kinds::kind(k).filter(|a| !a.session.is_empty()).map(|_| uuid()) }
+    match kind { "pi" => Some(format!("sw-{}", &uuid()[..13])), "opencode" => Some(format!("ses_{}", &random_hex(13)[..26])), k => super::kinds::kind(k).filter(|a| !a.session.is_empty()).map(|_| uuid()) }
 }
 /// The arguments that start a new conversation: the id the board chose for it, and the program's own "a new one".
 pub fn session_args(kind: &str, id: &str) -> Vec<String> { super::kinds::kind(kind).map(|a| if id.is_empty() { vec![] } else { fill(a.session, id) }).unwrap_or_default() }
@@ -110,6 +107,7 @@ pub fn transcript(kind: &str, session: &str, cwd: &Path) -> Option<PathBuf> {
         }
         "codex" => { let want = format!("{session}.jsonl"); find_file(&codex_home().join("sessions"), &|n| n.ends_with(&want), 4).into_iter().next() }
         "pi" => { let want = format!("_{session}.jsonl"); find_file(&pi_home().join("sessions"), &|n| n.ends_with(&want), 1).into_iter().next() }
+        "opencode" => opencode::freshen(session), // a copy of its rows, brought up to date on every look
         _ => None,
     }
 }
@@ -154,6 +152,7 @@ pub fn latest_session(kind: &str, cwd: &Path, since: i64, was: Option<&Path>) ->
             }
             None
         }
+        "opencode" => opencode::latest_in(&real, was, since),
         _ => None,
     }
 }
@@ -175,14 +174,23 @@ pub fn find_session_but(kind: &str, cwd: &Path, since: i64, needle: &str, but: &
 }
 pub fn can_find_session(kind: &str) -> bool { kind == "codex" }
 pub fn resume_args(kind: &str, id: &str) -> Vec<String> { super::kinds::kind(kind).map(|a| fill(a.resume, id)).unwrap_or_default() }
-/// pi takes a provider apart from its model (`pi/anthropic/claude-opus-5-5`).
+/// pi takes a provider apart from its model (`pi/anthropic/claude-opus-5-5`). OpenCode's interactive program takes no
+/// model flag: its model and effort are its launch file's (opencode.rs), and nothing goes on the command line.
 pub fn model_args(kind: &str, m: &str) -> Vec<String> {
     match kind {
         "pi" => match m.split_once('/') { Some((p, mm)) => vec!["--provider".into(), p.into(), "--model".into(), mm.into()], None => vec!["--model".into(), m.into()] },
+        "opencode" => vec![],
         k => super::kinds::kind(k).map(|a| fill(a.model, m)).unwrap_or_default(),
     }
 }
-pub fn effort_args(kind: &str, e: &str) -> Vec<String> { super::kinds::kind(kind).map(|a| fill(a.effort, e)).unwrap_or_default() }
+pub fn effort_args(kind: &str, e: &str) -> Vec<String> { if kind == "opencode" { vec![] } else { super::kinds::kind(kind).map(|a| fill(a.effort, e)).unwrap_or_default() } }
+/// A start of this kind needs a file and an environment of its own (OpenCode: its launch file, opencode.rs, which
+/// carries its model and effort too). `dir`: where the file goes. None for a kind that takes everything on its
+/// command line.
+pub fn launch_env(kind: &str, dir: &Path, role: &str, model: &str, effort: &str, access: &str) -> Res<Option<Vec<(String, String)>>> {
+    if kind != "opencode" { return Ok(None); }
+    Ok(Some(opencode::launch_env(&opencode::launch_file(dir, role, model, super::start::effort_for(kind, model, effort).as_str(), access)?)))
+}
 /// Codex's Fast mode (every request carries `service_tier: "priority"`); off names the default tier, last on the line.
 pub fn fast_args(kind: &str, on: bool) -> Vec<String> {
     match (kind, on) { ("codex", true) => vec!["-c".into(), "service_tier=\"fast\"".into()], ("codex", false) => vec!["-c".into(), "service_tier=\"default\"".into()], _ => vec![] }
@@ -236,7 +244,7 @@ pub fn one_shot(kind: &str, model: &str, effort: &str, prompt: &str, system: &st
 pub fn can_one_shot(kind: &str) -> bool { one_shot(kind, "", "", "", "", false).is_some() }
 /// The program's own user-level skills folder, where it is installed.
 pub fn skill_dir(kind: &str) -> Option<PathBuf> {
-    let home = match kind { "claude" => claude_home(), "codex" => codex_home(), "pi" => pi_home(), _ => return None };
+    let home = match kind { "claude" => claude_home(), "codex" => codex_home(), "pi" => pi_home(), "opencode" => opencode_home(), _ => return None };
     home.exists().then(|| home.join("skills"))
 }
 /// Mark a repo as trusted in the program's own settings, so a new worktree starts without its "trust this folder?"

@@ -73,6 +73,14 @@ pub fn read_obj(file: &Path) -> Option<Obj> { match read_json(file) { Some(Value
 pub fn write_json(file: &Path, value: &Value) -> Res<()> {
     write_atomic(file, serde_json::to_string_pretty(&tidy(value.clone()))?.as_bytes())
 }
+/// A file only its owner may read (a key, a token): written whole, mode 0600.
+pub fn write_private(file: &Path, text: &str) -> Res<()> {
+    use std::os::unix::fs::OpenOptionsExt;
+    if let Some(d) = file.parent() { fs::create_dir_all(d)?; }
+    let mut f = OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(file)?;
+    f.write_all(text.as_bytes())?;
+    Ok(())
+}
 pub fn write_atomic(file: &Path, bytes: &[u8]) -> Res<()> {
     if let Some(d) = file.parent() { fs::create_dir_all(d)?; }
     let tmp = PathBuf::from(format!("{}.{}.tmp", file.display(), std::process::id()));

@@ -59,6 +59,7 @@ pub fn start_agent(id: &str, g: &mut Guard, prompt: &str, resume: Option<&str>) 
     let name = agent_name(&t, &taken);
     if plan::planner(&t) { flow::tabs::name_tab(&api, t.at("link").s("tab"), flow::tabs::PLANNER_TAB); } else { flow::tabs::name_agent_tab(&api, t.at("link").s("tab"), Some(&t)); }
     let x = launch_extras(&t, "agent", &kind, 0, &rules(&t), resume)?;
+    let env = adapter::launch_env(&kind, &dir_of(t.s("id")), "agent", &model, &level, &who.access)?.unwrap_or_default(); // a kind that takes a launch file and an environment of its own (OpenCode)
     let fast = if plan::planner(&t) { None } else { Some(who.fast) };
     let args = |hooked: bool| -> Res<Vec<String>> {
         let mut extra = if hooked { x.hook.clone() } else { vec![] };
@@ -69,7 +70,7 @@ pub fn start_agent(id: &str, g: &mut Guard, prompt: &str, resume: Option<&str>) 
     let pane = t.at("link").t("pane");
     let mut start_with = |with_hook: bool| -> Res<()> {
         // In a read-only mount while its plan waits (plan/sandbox.rs).
-        match plan::sandbox::start_program(&api, &t, &name, &kind, &pane, &args(with_hook)?) {
+        match plan::sandbox::start_program(&api, &t, &name, &kind, &pane, &args(with_hook)?, &env) {
             Ok(()) => Ok(()),
             Err(e) if e.code == "agent_not_ready" => { blocked = true; Ok(()) } // a dialog is in the way: the text waits in the inbox
             Err(e) => Err(e.into()),

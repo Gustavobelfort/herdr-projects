@@ -53,6 +53,8 @@ pub fn hook_usable(k: &str) -> bool {
 /// Does a finished turn still need the closing note? Yes unless the hook and the reader both work for this kind.
 pub fn needs_note(k: &str) -> bool { !kind(k).map(|a| a.reads_turn).unwrap_or(false) || !hook_usable(k) || mark(&format!("reader:{k}"), &version_of(k)).is_some() }
 fn file_for(k: &str, file: Option<&Path>, session: &str, cwd: &Path) -> Option<PathBuf> {
+    // OpenCode's file is the board's own copy of its rows: brought up to date before it is read, named or not.
+    if k == "opencode" { let s = if session.is_empty() { file.and_then(|f| f.file_stem()).and_then(|s| s.to_str()).unwrap_or("").to_string() } else { session.to_string() }; return crate::agents::opencode::freshen(&s).or_else(|| file.filter(|f| f.exists()).map(|f| f.to_path_buf())); }
     match file.filter(|f| f.exists()) { Some(f) => Some(f.to_path_buf()), None if !session.is_empty() => adapter::transcript(k, session, cwd), None => None }
 }
 /// The end of a task's (or its reviewer's) saved conversation, or None. `whole`: the whole file is read.

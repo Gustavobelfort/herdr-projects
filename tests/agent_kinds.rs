@@ -66,14 +66,16 @@ fn the_watcher_one_shot_of_each_program_comes_from_the_table() {
     let c = shot("cursor", "", "");
     assert_eq!(c.command, "cursor-agent");
     assert_eq!(c.args.last().unwrap(), "How far along?");
-    for k in all() { assert!(one_shot(k.name, "", "", "p", "", false).is_some(), "{} has a one-shot", k.name); }
+    // Every program but OpenCode, which has no headless call (docs/opencode.md): it cannot be the Watcher.
+    for k in all() { assert_eq!(one_shot(k.name, "", "", "p", "", false).is_some(), k.name != "opencode", "{} has a one-shot", k.name); }
+    refused("watcher.agent", "opencode", r"opencode has no headless one-shot mode, so it cannot be the Watcher");
 }
 
 #[test]
 fn a_program_that_cannot_do_a_role_or_take_what_it_is_given_is_refused_with_the_reason() {
     let _w = world();
     // mastracode cannot be told its model or to work without asking at start: never on a task, but the Watcher.
-    refused("worker.agent", "mastracode", r"^worker\.agent: mastracode cannot work on a task: .*environment variables.* These can: claude, codex, pi, agy");
+    refused("worker.agent", "mastracode", r"^worker\.agent: mastracode cannot work on a task: .*environment variables.* These can: claude, codex, pi, opencode, agy");
     refused("reviewer.fallback", "codex, mastracode", r"^reviewer\.fallback: mastracode cannot review");
     refused("attempts.by", "claude, mastracode", r"^attempts\.by: mastracode cannot work on a task");
     refused("plan.agent", "mastracode", r"mastracode cannot write a plan");
@@ -94,7 +96,7 @@ fn a_program_that_cannot_do_a_role_or_take_what_it_is_given_is_refused_with_the_
     // herdr's integration name, and the executable's, name the program too.
     assert_eq!(taken("reviewer.agent", "antigravity-cli/gemini-3-pro"), "agy/gemini-3-pro");
     assert_eq!(taken("reviewer.fallback", "cursor-agent, Qwen"), r#"["cursor","qwen"]"#);
-    refused("worker.agent", "gemni", r#"no agent program "gemni"\. It must be claude, codex, pi, agy, .*, qwen\."#);
+    refused("worker.agent", "gemni", r#"no agent program "gemni"\. It must be claude, codex, pi, opencode, agy, .*, qwen\."#);
 }
 
 #[test]

@@ -73,8 +73,9 @@ fn a_level_the_program_does_not_take_is_refused_with_the_ones_it_does() {
     refused("reviewer.effort", "ultra", r#"claude has no effort "ultra": it takes low, medium, high, xhigh, max, as `claude --help` lists them"#);
     taken("reviewer.agent", "cursor");
     refused("reviewer.effort", "high", r"cursor takes its effort in the model's name: cursor/claude-opus-4-8\[effort=high\]: leave it at default\.");
+    // OpenCode's effort is its model's variant (docs/opencode.md): any level here, checked by OpenCode against the model.
     taken("reviewer.agent", "opencode");
-    refused("reviewer.effort", "high", r"opencode takes no effort level when the board starts it");
+    taken("reviewer.effort", "high");
     // The Coordinator for one use: its effort is checked against the model it is given.
     assert!(sw::coordinator::who::pick_of("codex/gpt-6-luna", "ultra").unwrap_err().msg.contains("codex's gpt-6-luna has no effort \"ultra\""));
     assert_eq!(sw::coordinator::who::pick_of("codex/gpt-6.1-sol", "ultra").unwrap().unwrap().s("effort"), "ultra");

@@ -7,6 +7,7 @@ pub mod send;
 pub mod sidebar;
 pub mod sidebar_entry;
 pub mod spaces;
+pub mod start;
 pub mod tabs;
 pub mod talk;
 pub mod task;

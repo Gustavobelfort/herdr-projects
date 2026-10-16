@@ -163,6 +163,7 @@ mod merge_rest;
 mod model_refused;
 mod notify;
 mod old_suggestions;
+mod opencode;
 mod plan;
 mod plan_modes;
 mod plan_more;

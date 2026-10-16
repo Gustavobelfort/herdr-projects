@@ -122,7 +122,20 @@ fn pi_talk(rows: &[Value]) -> Vec<Said> {
     }
     out
 }
-fn reader(kind: &str) -> Option<fn(&[Value]) -> Vec<Said>> { match kind { "claude" => Some(claude_talk), "codex" => Some(codex_talk), "pi" => Some(pi_talk), _ => None } }
+/// OpenCode, from the board's copy of its rows (agents/opencode.rs): a user row's text, and an assistant row's text parts.
+fn opencode_talk(rows: &[Value]) -> Vec<Said> {
+    let mut out = vec![];
+    for e in rows {
+        let d = e.at("data");
+        match e.s("type") {
+            "user" => add(&mut out, true, &unwrap_paste(&d.t("text")), e.i("at")),
+            "assistant" => add(&mut out, false, &d.arr("content").iter().filter(|c| c.s("type") == "text").map(|c| c.t("text")).collect::<Vec<_>>().join("\n\n"), e.i("at")),
+            _ => {}
+        }
+    }
+    out
+}
+fn reader(kind: &str) -> Option<fn(&[Value]) -> Vec<Said>> { match kind { "claude" => Some(claude_talk), "codex" => Some(codex_talk), "pi" => Some(pi_talk), "opencode" => Some(opencode_talk), _ => None } }
 pub fn can_read_talk(kind: &str) -> bool { reader(kind).is_some() }
 
 // Read again only when the file changed, and a conversation's file is looked for once: the board asks on every beat.
@@ -139,6 +152,7 @@ pub fn talk_of(kind: &str, file: Option<&Path>, session: &str, cwd: &Path, keep:
         f = files.get(&key).filter(|p| p.exists()).cloned().or_else(|| { let found = super::adapter::transcript(kind, session, cwd); if let Some(p) = &found { files.insert(key.clone(), p.clone()); } found });
     }
     let f = f?;
+    if kind == "opencode" { if let Some(s) = f.file_stem().and_then(|s| s.to_str()) { super::opencode::freshen(s); } } // the copy, brought up to date
     let st = std::fs::metadata(&f).ok()?;
     let (mtime, size) = (st.modified().ok()?, st.len());
     if let Some((m, s, list)) = READ.lock().ok()?.get(&f) { if *m == mtime && *s == size { return Some(tail_of(list, keep)); } }

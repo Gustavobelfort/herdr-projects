@@ -115,7 +115,7 @@ pub enum Read {
     Table,
     /// `name - What it is`, one a line (cursor).
     Dashed,
-    /// One name a line (opencode's provider/model).
+    /// One name a line (a provider/model).
     Lines,
 }
 /// Where a program says the effort levels it takes.
@@ -138,7 +138,7 @@ pub const BASE: Kind = Kind {
 mod herdr;
 mod own;
 
-/// Every program, in the order they are named: the board's three first, then herdr's others.
+/// Every program, in the order they are named: the board's four first, then herdr's others.
 pub fn all() -> impl Iterator<Item = &'static Kind> { own::KINDS.iter().chain(herdr::KINDS.iter()) }
 /// The programs' names, as a setting gives them.
 pub static KIND_NAMES: std::sync::LazyLock<Vec<&'static str>> = std::sync::LazyLock::new(|| all().map(|k| k.name).collect());

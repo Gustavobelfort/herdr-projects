@@ -86,6 +86,7 @@ same file), and when you start the program in that folder by hand.
 | Claude Code | `CLAUDE.md` (2.1.296 also reads an `AGENTS.md` beside it) | `AGENTS.md`, and a `CLAUDE.md` that only passes on to it (`@AGENTS.md`): the rules arrive once |
 | Codex | `AGENTS.md` | `AGENTS.md` |
 | pi | `AGENTS.md` | `AGENTS.md` |
+| OpenCode | `AGENTS.md` | `AGENTS.md` ([OpenCode](opencode.md)) |
 | any other kind | not known | `AGENTS.md`, and one line before its first message that points at the file |
 
 - **Kept up to date.** The files are written again at every start and before every message. So a new version's rules

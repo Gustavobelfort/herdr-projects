@@ -59,16 +59,20 @@ pub fn pane(st: &mut Value, verb: &str, arg2: &str, argv: &[String], flag: &dyn 
             ok(json!({ "type": "pane_move", "move_result": { "changed": true, "closed_workspace_id": if emptied { json!(from) } else { Value::Null }, "created_tab": F::tab_out(st, &t), "pane": F::pane_out(&q) } }))
         }
         "close" => { arr(st, "panes").remove(pi); F::drop_empty(st); ok(json!({ "type": "ok" })) }
-        // A command run at the pane's shell. One that starts an agent program in a read-only mount
-        // (`env HERDR_PROJECTS_AGENT=<name> bwrap … -- <kind> <args>`) leaves that agent in the pane.
+        // A command run at the pane's shell. One that starts an agent program (`env HERDR_PROJECTS_AGENT=<name> [K=V …]
+        // <kind> <args>`, or the same in a read-only mount: `… bwrap … -- <kind> <args>`) leaves that agent in the
+        // pane, with the environment it was given.
         "run" => {
             let w = words(&argv[3..].join(" "));
-            let at = w.iter().position(|x| x == "--");
             let name = w.iter().find_map(|x| x.strip_prefix("HERDR_PROJECTS_AGENT=")).unwrap_or("").to_string();
-            if let (true, Some(at), false) = (w.iter().any(|x| x == "bwrap"), at, p.at("agent").is_object()) {
+            let boxed = w.iter().any(|x| x == "bwrap");
+            // The program: after `--` in a mount, else the first word after `env` that sets nothing.
+            let at = if boxed { w.iter().position(|x| x == "--").map(|i| i + 1) } else if w.first().map(|x| x == "env").unwrap_or(false) { w.iter().skip(1).position(|x| !x.contains('=')).map(|i| i + 1) } else { None };
+            if let (Some(at), false) = (at, p.at("agent").is_object()) {
                 let seq = st.i("seq") + 1; st["seq"] = json!(seq);
-                let kind = w.get(at + 1).cloned().unwrap_or_default();
-                st["panes"][pi]["agent"] = json!({ "kind": kind, "name": name, "status": "idle", "seq": seq, "args": w[at + 2..], "pid": 5000000 + seq, "boxed": true });
+                let kind = w.get(at).cloned().unwrap_or_default();
+                let env: Vec<Value> = w[1..at].iter().filter(|x| x.contains('=') && !x.starts_with("HERDR_PROJECTS_AGENT=")).map(|x| json!(x)).collect();
+                st["panes"][pi]["agent"] = json!({ "kind": kind, "name": name, "status": "idle", "seq": seq, "args": w[at + 1..], "pid": 5000000 + seq, "boxed": boxed, "env": env });
                 let d = st.at("dialogs").i(&kind);
                 if d > 0 { st["dialogs"][&kind] = json!(d - 1); st["panes"][pi]["agent"]["status"] = json!("blocked"); }
             }

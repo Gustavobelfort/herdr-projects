@@ -1,7 +1,8 @@
-//! The three programs whose saved conversation the board reads itself: Claude Code, Codex and pi. Verified on claude
-//! 2.1.296, codex 0.160.0, pi 1.1.0 (docs/checked-on-herdr.md). What they do beyond these facts is code of their own
-//! in adapter.rs (the turn-end hook, the conversation files, the Watcher's lean start, Codex's rules and fast mode,
-//! pi's provider in its model).
+//! The four programs whose saved conversation the board reads itself: Claude Code, Codex, pi and OpenCode. Verified
+//! on claude 2.1.296, codex 0.160.0, pi 1.1.0, opencode 2.0.25 (docs/checked-on-herdr.md). What they do beyond these
+//! facts is code of their own in adapter.rs (the turn-end hook, the conversation files, the Watcher's lean start,
+//! Codex's rules and fast mode, pi's provider in its model) and opencode.rs (OpenCode's launch file, its conversation
+//! copied out of its database).
 use super::{EffortsRead, Kind, Login, Models, Read, BASE, NO_MODELS};
 
 pub static KINDS: &[Kind] = &[
@@ -30,6 +31,16 @@ pub static KINDS: &[Kind] = &[
         models: Models { list: &["--list-models"], read: Read::Table, suffix: &[":"], example: "pi/anthropic/claude-opus-5-5", ..NO_MODELS },
         resume: &["--session-id", "{}"], session: &["--session-id", "{}"], standing: &["--append-system-prompt", "{}"], integration: "pi",
         checked: "everything the board does, on 1.1.0", ..BASE },
+    // OpenCode (2.0, docs/opencode.md, opencode.rs): its model and permission rules come from a launch file named in
+    // its environment and read on top of its own config (where its providers and keys stay), not from its command
+    // line, so `model` is a mark only (the file carries `<provider>/<model>#<effort>`), `full` is its --auto, `ask`
+    // leaves it to the file's rules, and the effort is the model's variant. Its names are the `provider/model` lines
+    // `opencode models` prints; a conversation id of the board's own (`ses_…`) both makes and reopens one. No turn-end
+    // hook; no one-shot (`opencode run` keeps every answer as a conversation in its database): it cannot be the Watcher.
+    Kind { name: "opencode", min_version: "2.0.0", access_full: &["--auto"], tokens: true, rules_file: Some("AGENTS.md"), reads_turn: true,
+        model: &["{}"], models: Models { list: &["models"], read: Read::Lines, suffix: &["#"], example: "opencode/anthropic/claude-opus-5-5", ..NO_MODELS },
+        effort: &["#{}"], resume: &["--standalone", "--session", "{}"], session: &["--standalone", "--session", "{}"], integration: "opencode",
+        checked: "the Coordinator and a task, live, 2.0.25", ..BASE },
 ];
 /// Claude Code's full model names, newest first; a new one is one more entry.
 const CLAUDE_MODELS: &[&str] = &[

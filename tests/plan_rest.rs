@@ -33,7 +33,7 @@ fn plan_ready_is_said_everywhere_the_worktree_stays_untouched_and_the_work_is_re
     assert!(!t.at("plan").b("undone"), "nothing got in, so nothing had to be put back");
     assert!(is_locked(&t));
     assert_eq!(t.at("plan").at("mode"), &json!(true));
-    assert!(sw::plan::sandbox::boxed_command(&t, "x", "codex", &["-c".into(), "a b".into()]).ends_with("--die-with-parent -- codex -c 'a b'"));
+    assert!(sw::plan::sandbox::boxed_command(&t, "x", "codex", &["-c".into(), "a b".into()], &[]).ends_with("--die-with-parent -- codex -c 'a b'"));
     assert!(!t.b("reviewRound"));
     // The row, the State line, herdr's sidebar and the notification all say it.
     let r = sw::shown::states::as_row(&row(&id));

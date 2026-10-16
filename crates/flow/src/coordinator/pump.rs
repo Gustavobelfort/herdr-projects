@@ -106,9 +106,11 @@ fn ensure(api: &Herdr, co: &Co) -> Res<(Obj, bool)> {
     while taken.contains(&name) { name = format!("{}-{n}", co.agent_name()); n += 1; }
     let began = now();
     change(co, |c| { c.put("starting", began); true })?;
-    let args = start::start_args(&k, &start::StartOpts { model: run.t("model"), effort: run.t("effort"), access: if run.b("access") { run.t("access") } else { "full".into() }, fast: run.b("fast").then_some(true), resume: resume.clone().unwrap_or_default(), session: session.clone().unwrap_or_default(), extra: launch, ..Default::default() })?;
+    let access = if run.b("access") { run.t("access") } else { "full".to_string() };
+    let args = start::start_args(&k, &start::StartOpts { model: run.t("model"), effort: run.t("effort"), access: access.clone(), fast: run.b("fast").then_some(true), resume: resume.clone().unwrap_or_default(), session: session.clone().unwrap_or_default(), extra: launch, ..Default::default() })?;
+    let launch_env = adapter::launch_env(&k, &dir_of(co), "coordinator", run.s("model"), run.s("effort"), &access)?.unwrap_or_default(); // OpenCode's launch file, in the Coordinator's own folder
     let mut blocked = false;
-    match api.agent_start(&name, &k, pane.s("pane_id"), &args, 60000) {
+    match crate::flow::start::program(&api, &name, &k, pane.s("pane_id"), &args, &launch_env, None) {
         Ok(_) => { settle(api, pane.s("pane_id"), &std::iter::once(crate::agents::kinds::program(&k).to_string()).chain(args).collect::<Vec<_>>().join(" ")); }
         Err(e) if e.code == "agent_not_ready" => blocked = true, // a dialog is in the way: what you said waits
         Err(e) => {

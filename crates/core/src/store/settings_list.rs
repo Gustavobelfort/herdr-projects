@@ -45,7 +45,7 @@ fn role(name: &str, who: &str, agent: &str, fast: bool, kind: Kind) -> Vec<Entry
         &format!("your own words for {who}, added after the board's own fixed rules{}", if kind == Kind::Work { ". They add up across the places, broadest first, and the agent is told that later ones win" } else { "" }));
     text.adds = kind == Kind::Work;
     vec![a,
-        e(&format!("{name}.effort"), &format!("{cap} effort"), kind, Ty::Effort, json!("default"), &format!("{who}'s effort level: one its program accepts (checked against `{name}.agent`), or `default` for the program's own")),
+        e(&format!("{name}.effort"), &format!("{cap} effort"), kind, Ty::Effort, json!("default"), &format!("{who}'s effort level: one its program accepts (checked against `{name}.agent`), or `default` for the program's own. For `opencode` it is the model's variant (`high`, `max`, …), one the model has ([OpenCode](opencode.md))")),
         e(&format!("{name}.fast"), &format!("{cap} fast mode"), kind, Ty::Switch, json!(fast), &format!("{who} in its program's fast mode: a faster service tier that uses more of your allowance. Only Codex has one; for another program it does nothing, and `show` says so")),
         e(&format!("{name}.access"), &format!("{cap} access"), kind, Ty::Access, json!("full"), &format!("what {who} may do without asking: `full` or `ask`. The board turns it into each program's own flags. `ask` is refused for a program that cannot ask ({})", crate::agents::kinds::all().filter(|k| k.access_ask.is_none()).map(|k| k.name).collect::<Vec<_>>().join(", "))),
         text]

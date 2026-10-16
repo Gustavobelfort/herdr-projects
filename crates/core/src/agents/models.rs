@@ -68,6 +68,11 @@ pub fn why_not(k: &str, m: &str) -> Option<String> {
         Listing::Unchecked => return None,
         Listing::Failed(why) => return Some(format!("{k}'s list of models could not be read, so \"{m}\" cannot be checked: {why}. Run `{}` in a terminal here to see why and fix that, or leave the model out ({k} then uses its own default).", list_command(k))),
     };
+    // A gateway's inventory holds models that answer no conversation (an image model): known, so not refused as unknown,
+    // but not for a chat.
+    if k == "opencode" && in_list(&names, a, m) && !names.shown.iter().any(|x| x == m || cut(a, m).map(|(b, _)| x == b).unwrap_or(false)) && !super::opencode_models::chat_model(m) {
+        return Some(format!("{k}: \"{m}\" takes no conversation (an image, embedding, speech or review-only model). It takes {} ({}).", nearest(m, &names.shown, SHOWN).join(", "), source(a, &names)));
+    }
     if in_list(&names, a, m) { return None; }
     if !a.models.list.is_empty() { if let Listing::Names(n) = listed(k, true) { names = n; } } // asked again: the program may have a new one
     if in_list(&names, a, m) { return None; }

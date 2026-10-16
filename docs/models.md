@@ -40,7 +40,7 @@ each program names its models its own way:
 | `codex` | `codex/gpt-6.1-sol` | what Codex lists for the account it is signed in with (its app-server's `model/list`; `codex debug models` when that cannot be asked) |
 | `pi` | `pi/anthropic/claude-opus-5-5` (its provider first), `pi/anthropic/claude-opus-5-5:high` | what `pi --list-models` lists |
 | `cursor` | `cursor/claude-opus-5-5-high`, `cursor/claude-opus-4-8[effort=high]` | what `cursor-agent models` lists; a listed model's name without its last part takes parameters in brackets |
-| `opencode` | `opencode/anthropic/claude-opus-5-5` (its provider first) | what `opencode models` lists |
+| `opencode` | `opencode/anthropic/claude-opus-5-5` (its provider first), `opencode/anthropic/claude-opus-5-5#high` (its variant) | what `opencode models` lists, and the whole inventory of an OpenAI-compatible gateway in its config ([OpenCode](opencode.md)) |
 | `droid`, `mastracode` | no model | chosen in the program's own settings |
 | the others | `agy/gemini-3-pro` | not checked: the names the program's own help gives |
 

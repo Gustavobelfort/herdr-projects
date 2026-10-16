@@ -50,6 +50,18 @@ pub enum Listing {
 /// The names this program lists. `fresh`: asked again unless the kept list is under a minute old (a name it lacks may
 /// be one the program has just added). A list that could not be read is not kept: the next try asks again.
 pub fn listed(k: &str, fresh: bool) -> Listing {
+    let l = own_list(k, fresh);
+    if k != "opencode" { return l; }
+    // OpenCode lists only the models written in its config: its OpenAI-compatible gateways are asked for the rest
+    // (opencode_models.rs), the ones that take a chat shown.
+    let Listing::Names(mut n) = l else { return l };
+    for m in super::super::opencode_models::names() {
+        if !n.taken.contains(&m) { n.taken.push(m.clone()); if super::super::opencode_models::chat_model(&m) { n.shown.push(m); } }
+    }
+    Listing::Names(n)
+}
+/// What the program itself lists.
+fn own_list(k: &str, fresh: bool) -> Listing {
     let Some(a) = kind(k) else { return Listing::Unchecked };
     if a.models.list.is_empty() || own_provider(k) { return Listing::Unchecked; }
     let all = read_obj(&file()).unwrap_or_default();
@@ -72,7 +84,9 @@ pub fn listed(k: &str, fresh: bool) -> Listing {
     Listing::Names(names)
 }
 /// The program's own command that lists its models, as typed.
-pub fn list_command(k: &str) -> String { std::iter::once(program(k)).chain(kind(k).map(|a| a.models.list).unwrap_or(&[]).iter().copied()).collect::<Vec<_>>().join(" ") }
+pub fn list_command(k: &str) -> String {
+    std::iter::once(program(k)).chain(kind(k).map(|a| a.models.list).unwrap_or(&[]).iter().copied()).collect::<Vec<_>>().join(" ")
+}
 /// What the program printed; None when it is not installed here; Err: why it gave nothing.
 pub fn run(prog: &str, args: &[&str]) -> Result<Option<String>, String> {
     let cmd = std::iter::once(prog).chain(args.iter().copied()).collect::<Vec<_>>().join(" ");

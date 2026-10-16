@@ -10,7 +10,10 @@ use std::time::{Duration, SystemTime};
 struct Bench { base: PathBuf }
 impl Bench {
     fn new(name: &str) -> Bench {
-        let base = std::env::temp_dir().join(format!("sw-warm-start-{}-{name}", std::process::id()));
+        // The real path: the setup records the folder it built in as the shell's `pwd` says it, and on macOS the
+        // temp folder is reached through a link (/var → /private/var) that `pwd` resolves.
+        let tmp = std::fs::canonicalize(std::env::temp_dir()).unwrap();
+        let base = tmp.join(format!("sw-warm-start-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&base);
         std::fs::create_dir_all(base.join("repo/src")).unwrap();
         let b = Bench { base };
