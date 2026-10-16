@@ -70,19 +70,23 @@ pub fn gateways() -> Vec<(String, String, String)> {
     }
     out
 }
-fn fetch(url: &str, key: &str) -> Option<Vec<String>> {
+/// The gateway's list of models, or why it gave none (its status and words: a refused key, a quota), for the record.
+fn fetch(url: &str, key: &str) -> Result<Vec<String>, String> {
     // The key goes to curl on its standard input (`-H @-`), never on its command line, where any process could read it.
     let mut c = Command::new("curl");
-    c.args(["-fsS", "--max-time", "20"]);
+    c.args(["-sS", "--max-time", "20", "-w", "\n%{http_code}"]);
     if !key.is_empty() { c.args(["-H", "@-"]); }
-    let mut child = c.arg(format!("{url}/models")).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn().ok()?;
+    let mut child = c.arg(format!("{url}/models")).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().map_err(|e| e.to_string())?;
     if let Some(mut stdin) = child.stdin.take() { use std::io::Write; if !key.is_empty() { let _ = stdin.write_all(format!("Authorization: Bearer {key}\nx-api-key: {key}\n").as_bytes()); } }
-    let out = child.wait_with_output().ok()?;
-    if !out.status.success() { return None; }
-    let v: Value = serde_json::from_slice(&out.stdout).ok()?;
+    let out = child.wait_with_output().map_err(|e| e.to_string())?;
+    if !out.status.success() { return Err(String::from_utf8_lossy(&out.stderr).trim().to_string()); }
+    let text = String::from_utf8_lossy(&out.stdout);
+    let (body, status) = text.rsplit_once('\n').unwrap_or((&text, ""));
+    if !status.starts_with('2') { return Err(format!("HTTP {status}: {}", crate::store::tasks::one_line(body, 200))); }
+    let v: Value = serde_json::from_str(body).map_err(|e| e.to_string())?;
     let mut m: Vec<&Value> = v.arr("data").iter().collect();
     m.sort_by_key(|x| std::cmp::Reverse(x.i("created")));
-    Some(m.iter().map(|x| x.t("id")).filter(|id| !id.is_empty()).collect())
+    Ok(m.iter().map(|x| x.t("id")).filter(|id| !id.is_empty()).collect())
 }
 /// Every `<provider>/<id>` the gateways serve, newest first, fetched at most once a day; a gateway that cannot be
 /// asked keeps what it said last. Empty when OpenCode's config names no gateway.
@@ -95,12 +99,23 @@ pub fn names() -> Vec<String> {
         let had = kept.at(&name).clone();
         let fresh = had.at("ids").is_array() && now() - had.i("at") < KEPT;
         let ids = if fresh { strings(had.at("ids")) } else {
-            match fetch(&url, &key) { Some(ids) if !ids.is_empty() => { kept.put(&name, json!({ "at": now(), "ids": ids })); changed = true; ids } _ => strings(had.at("ids")) }
+            match fetch(&url, &key) {
+                Ok(ids) if !ids.is_empty() => { kept.put(&name, json!({ "at": now(), "ids": ids })); changed = true; ids }
+                Ok(_) => strings(had.at("ids")),
+                // Why it gave none is kept beside what it said last, so `herdr-projects models opencode` can say so.
+                Err(why) => { let mut h = had.as_object().cloned().unwrap_or_default(); h.put("failed", json!({ "at": now(), "why": why })); kept.put(&name, Value::Object(h)); changed = true; strings(had.at("ids")) }
+            }
         };
         out.extend(ids.into_iter().map(|id| format!("{name}/{id}")));
     }
-    if changed { let _ = write_private(&file(), &Value::Object(kept).to_string()); } // ids only, but no wider than it need be
+    if changed { let _ = write_private(&file(), &Value::Object(kept).to_string()); } // ids and reasons only, but no wider than it need be
     out
+}
+/// Why a gateway's inventory could not be read, when its last try failed: for the words of a refusal
+/// (`herdr-projects models opencode` and a model it does not know).
+pub fn failed() -> Vec<String> {
+    let kept = read_obj(&file()).unwrap_or_default();
+    kept.iter().filter(|(_, v)| v.at("failed").b("why") && v.at("failed").i("at") >= v.i("at")).map(|(n, v)| format!("{n}: {}", v.at("failed").s("why"))).collect()
 }
 /// Models the gateways list that take a chat: an image, embedding, speech or review-only model answers no conversation.
 pub fn chat_model(name: &str) -> bool { let id = name.rsplit('/').next().unwrap_or(name); !(id.contains("image") || id.contains("embed") || id.contains("tts") || id.contains("whisper") || id.contains("auto-review")) }

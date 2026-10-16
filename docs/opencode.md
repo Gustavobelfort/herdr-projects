@@ -17,12 +17,14 @@ of several vendors, say), OpenCode lists only the models written under it by han
 itself for what it serves (`GET <baseURL>/models`, with the key the config names, substituted as OpenCode would:
 `{env:…}`, `{file:…}`), at most once a day (`data/opencode/inventory.json`), and takes those names too, as
 `<provider>/<id>`. The ones that answer a chat are offered; an image, embedding, speech or review-only model is
-known but never offered. A model chosen that way is declared under its provider in the launch file, so OpenCode
+known but never offered. A gateway that refuses its list (a wrong key, a quota) keeps what it said last, and
+`herdr-projects models opencode` and the refusal of an unknown name say why. A model chosen that way is declared under its provider in the launch file, so OpenCode
 runs it; the config itself is never touched.
 
 **One launch config per start.** OpenCode takes its model and its permission rules from config and from nothing on
 its command line, so each start writes one small file (`opencode-<role>.json`, mode 0600, in the task's own folder or
-the Coordinator's, for the record) and hands its text to the program inline (`OPENCODE_CONFIG_CONTENT`). OpenCode
+the Coordinator's) and has the pane's shell hand its text to the program inline (`OPENCODE_CONFIG_CONTENT="$(cat …)"`:
+a terminal cuts a typed line near a thousand bytes, so the text is not typed). OpenCode
 layers its config: its own global file, then `OPENCODE_CONFIG`, then the repo's own `opencode.json`, then the inline
 text; a board agent works inside a repo, whose own file would replace the chosen model and cancel the ask rules if the
 board's came before it, so the board's comes last. Your providers stay; the config holds only the model, the rules of
@@ -32,13 +34,16 @@ not name, that one model entry:
 | `<role>.access` | What the file says | And on the command line |
 |---|---|---|
 | `full` | nothing: OpenCode's own rules stand | `--auto` |
-| `ask` | ask before an edit, a shell command, a fetch and anything outside the folder | nothing |
+| `ask` | ask before an edit, a shell command, a fetch and anything outside the folder, at the top and for each of OpenCode's agents | nothing |
 
-The file's rules come after OpenCode's own (among them: ask before reading a `.env` file), so it never writes a
-catch-all `allow`: that would override those and let an agent in `ask` mode read a secrets file without asking.
+The config's rules come after OpenCode's own (among them: ask before reading a `.env` file), so it never writes a
+catch-all `allow`: that would override those and let an agent in `ask` mode read a secrets file without asking. An
+agent's own rules (`agents.build.permissions`, say) come after the top-level ones, so a repo's config could give an
+agent `shell: allow` and cancel the ask; the ask rules are written for each of OpenCode's agents too (`build`, `plan`,
+`general`, `explore`, `scout`, and the three it uses by itself).
 
 So a Coordinator with `coordinator.access ask` asks in its own pane before it acts, as it does on Claude Code. The
-program is started by a command typed at the pane's shell (`env OPENCODE_CONFIG_CONTENT=… opencode …`), the way a plan's
+program is started by a command typed at the pane's shell (`env OPENCODE_CONFIG_CONTENT="$(cat …)" opencode …`), the way a plan's
 writer is started in its read-only mount, because herdr's `agent start` hands a program no environment; herdr then
 finds the agent in the pane by itself. `--standalone` keeps every board agent out of OpenCode's shared background
 service, so one agent's restart never touches another's.
@@ -54,7 +59,7 @@ runs, also on a conversation reopened with another model: `coordinator new --age
 does not exist and reopens one that does) and, whenever it reads a conversation, copies its rows into one JSON-lines
 file of its own (`data/opencode/<session>.jsonl`, written again only when the database has more or newer rows),
 which its readers take as they take any other program's file: the last message, a finished or a pending turn, an
-error with its status (a turn you stopped with Esc is an interrupt, not an error; a reply cut off at its length says so; a `401` is a login; a provider's `503` for a model no account serves is lasting when its words
+error with its status (a turn you stopped with Esc is an interrupt, not an error; a reply cut off at its length, or refused by the model's filter, says so; a `401` is a login; a provider's `503` for a model no account serves is lasting when its words
 say the model is not supported; an overload or a dropped connection passes by itself and is retried), the tokens and
 the model of each reply, and the words of the chat. The copy needs `sqlite3` on the machine (macOS has it; `apt
 install sqlite3`). A new chat the program begins in the Coordinator's folder is followed as for the other programs:

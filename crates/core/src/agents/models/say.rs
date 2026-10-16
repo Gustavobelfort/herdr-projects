@@ -47,7 +47,8 @@ pub fn models_command(only: &str) -> Res<(Value, String)> {
             Some(s) => format!("{k} takes {}{here}. Write one after the program, as in worker.agent {k}/{}:\n\n{}", how(k), s[0], s.iter().map(|m| format!("{k}/{m}")).collect::<Vec<_>>().join("\n")),
             None => format!("{k}: {}.", how(k)),
         };
-        let text = format!("{text}\n\nEffort (worker.effort and the like): {effort}.");
+        let unread = if k == "opencode" { crate::agents::opencode_models::failed().into_iter().map(|f| format!("\n\nA gateway's inventory could not be read (its models may be missing above): {f}.")).collect::<String>() } else { String::new() };
+        let text = format!("{text}{unread}\n\nEffort (worker.effort and the like): {effort}.");
         return Ok((json!({ "agent": k, "how": how(k), "models": shown, "signin": signin, "efforts": efforts }), text));
     }
     let mut rows = vec![];

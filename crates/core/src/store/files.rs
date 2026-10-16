@@ -79,6 +79,7 @@ pub fn write_private(file: &Path, text: &str) -> Res<()> {
     if let Some(d) = file.parent() { fs::create_dir_all(d)?; }
     let mut f = OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(file)?;
     f.write_all(text.as_bytes())?;
+    let _ = fs::set_permissions(file, std::os::unix::fs::PermissionsExt::from_mode(0o600)); // one written wider before is made private too
     Ok(())
 }
 pub fn write_atomic(file: &Path, bytes: &[u8]) -> Res<()> {

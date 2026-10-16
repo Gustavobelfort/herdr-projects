@@ -16,22 +16,31 @@ use std::process::{Command, Stdio};
 
 // ---- the launch file -----------------------------------------------------------------------------------------------
 /// The permission rules of a role, laid over OpenCode's own (its `read *.env: ask` among them): `full` is OpenCode's
-/// --auto, and the file says nothing, so its own rules stand; `ask` asks before an edit, a command, a fetch and anything
+/// --auto, and the config says nothing, so its own rules stand; `ask` asks before an edit, a command, a fetch and anything
 /// outside the folder, as the Coordinator does on Claude Code. Never a catch-all `allow`: that would come after
 /// OpenCode's own rules and override them, and an agent in `ask` mode would read a secrets file without asking.
 fn rules(access: &str) -> Value {
     let rule = |action: &str| json!({ "action": action, "resource": "*", "effect": "ask" });
     if access == "ask" { json!([rule("edit"), rule("shell"), rule("webfetch"), rule("external_directory")]) } else { json!([]) }
 }
+/// OpenCode's agents: the two a conversation runs as, the three it hands work to, the three it uses by itself. An
+/// agent's own rules (`agents.<name>.permissions`) come after the top-level ones, so a repo's config could give one of
+/// them `shell: allow` and cancel the ask rules: the rules are written for each agent too (an agent a repo adds under
+/// another name gets the top-level ones, which it then overrides only by naming them).
+const AGENTS: &[&str] = &["build", "plan", "general", "explore", "scout", "compaction", "title", "summary"];
 /// The file one start is given: the model with its effort as its variant (what a new conversation runs on, and what a
-/// reopened one is switched to; none named: OpenCode's own default), the role's permission rules, and no self-update
+/// reopened one is switched to; none named: OpenCode's own default), the role's permission rules (at the top and for
+/// each of OpenCode's agents), and no self-update
 /// under a running agent. A model of an OpenAI-compatible gateway that OpenCode's config does not list by name is
 /// declared here under its provider (OpenCode runs only the models its config names; the user's config is not touched).
 /// Mode 0600, in the folder named.
 pub fn launch_file(dir: &Path, role: &str, model: &str, effort: &str, access: &str) -> Res<PathBuf> {
     let mut cfg = obj(json!({ "$schema": "https://opencode.ai/config.json", "update": "disable" }));
     let r = rules(access);
-    if !r.as_array().map(|a| a.is_empty()).unwrap_or(true) { cfg.put("permissions", r); }
+    if !r.as_array().map(|a| a.is_empty()).unwrap_or(true) {
+        cfg.put("permissions", r.clone());
+        cfg.put("agents", Value::Object(AGENTS.iter().map(|n| (n.to_string(), json!({ "permissions": r }))).collect()));
+    }
     if let Some(m) = model_arg(model, effort) { cfg.put("model", m); }
     if let Some((provider, id)) = gateway_model(model) { cfg.put("providers", json!({ provider: { "models": { id.clone(): { "name": id } } } })); }
     let file = dir.join(format!("opencode-{role}.json"));
@@ -46,11 +55,12 @@ fn gateway_model(model: &str) -> Option<(String, String)> {
     let served = super::opencode_models::gateways().iter().any(|(n, _, _)| n == provider) && super::opencode_models::names().iter().any(|x| x == m);
     served.then(|| (provider.to_string(), id.to_string()))
 }
-/// The environment a start needs: the launch file's text inline (`OPENCODE_CONFIG_CONTENT` is read after the repo's own
+/// The environment a start needs: the launch file's text in `OPENCODE_CONFIG_CONTENT` (read after the repo's own
 /// `opencode.json`, where `OPENCODE_CONFIG` would be read before it and lose), and no self-update under a running agent.
+/// The text is not spelled out here: a terminal cuts a typed line near a thousand bytes, so the pane's shell reads the
+/// file itself (`$(cat <file>)`, flow/start.rs `env_command` quotes a value that starts so as a shell word).
 pub fn launch_env(file: &Path) -> Vec<(String, String)> {
-    let text = std::fs::read_to_string(file).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()).map(|v| v.to_string()).unwrap_or_default();
-    vec![("OPENCODE_CONFIG_CONTENT".into(), text), ("OPENCODE_DISABLE_AUTOUPDATE".into(), "1".into())]
+    vec![("OPENCODE_CONFIG_CONTENT".into(), format!("$(cat {})", crate::util::shq(&file.display().to_string()))), ("OPENCODE_DISABLE_AUTOUPDATE".into(), "1".into())]
 }
 /// `<provider>/<model>#<effort>`, the launch file's `model`: the effort is the model's variant, none for `default`.
 /// None for no model: OpenCode's own default.

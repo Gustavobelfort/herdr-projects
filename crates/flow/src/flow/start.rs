@@ -6,7 +6,12 @@
 use crate::herdr::{cli::HerdrError, Herdr};
 use crate::json::*;
 
-fn q(s: &str) -> String { if !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || "_@%+=:,./-#".contains(c)) { s.to_string() } else { crate::util::shq(s) } }
+pub fn q(s: &str) -> String {
+    // A value the shell reads itself (`K=$(cat '<file>')`: OpenCode's launch config, too long for a typed line) stays
+    // a shell word, in double quotes; any other is quoted whole.
+    if let Some((k, v)) = s.split_once("=$(") { if k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') && v.ends_with(')') && !v.contains('"') { return format!("{k}=\"$({v}\""); } }
+    if !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || "_@%+=:,./-#".contains(c)) { s.to_string() } else { crate::util::shq(s) }
+}
 fn herr(code: &str, msg: String) -> HerdrError { HerdrError { code: code.into(), message: msg } }
 /// The command typed at the shell: `env HERDR_PROJECTS_AGENT=<name> K=V … <kind> <args>`. The name it would have had
 /// from `agent start` rides along, so a fake herdr can give it the agent's name.

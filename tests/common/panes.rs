@@ -4,10 +4,15 @@ use super::herdr::{arr, fail, ok, out, FakeHerdr as F, Out};
 use serde_json::{json, Value};
 use sw::json::*;
 
-/// Words of a shell line: quoted ('it'\''s') or bare.
+/// Words of a shell line: quoted ('it'\''s'), a value the shell reads from a file (`K="$(cat 'file')"`, read here as
+/// the shell would), or bare.
 fn words(line: &str) -> Vec<String> {
-    let re = regex::Regex::new(r"'((?:[^']|'\\'')*)'|(\S+)").unwrap();
-    re.captures_iter(line).map(|c| match c.get(1) { Some(q) => q.as_str().replace("'\\''", "'"), None => c[2].to_string() }).collect()
+    let re = regex::Regex::new(r#"([A-Za-z_]+)="\$\(cat '([^']+)'\)"|'((?:[^']|'\\'')*)'|(\S+)"#).unwrap();
+    re.captures_iter(line).map(|c| match (c.get(1), c.get(3)) {
+        (Some(k), _) => format!("{}={}", k.as_str(), std::fs::read_to_string(&c[2]).unwrap_or_default().trim()),
+        (None, Some(q)) => q.as_str().replace("'\\''", "'"),
+        _ => c[4].to_string(),
+    }).collect()
 }
 pub fn pane(st: &mut Value, verb: &str, arg2: &str, argv: &[String], flag: &dyn Fn(&str) -> Option<String>, env_of: &dyn Fn() -> Value) -> Out {
     let find = |st: &Value, id: &str| st.arr("panes").iter().position(|p| p.s("pane_id") == id);

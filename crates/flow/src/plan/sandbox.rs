@@ -26,7 +26,6 @@ pub fn sandbox_ok() -> bool {
     let _ = write_json(&file, &json!({ "ok": ok, "at": now }));
     ok
 }
-fn q(s: &str) -> String { if !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || "_@%+=:,./-#".contains(c)) { s.to_string() } else { crate::util::shq(s) } }
 /// The folder that may not change: the task's own worktree, or the checkout it works in. None for a folder no repo.
 pub fn guarded(t: &Obj) -> Option<PathBuf> { let dir = cwd_of(t); (dir.exists() && is_repo(&dir)).then_some(dir) }
 /// Does this task's plan writer run in such a mount? In a repo, while the step is open.
@@ -43,7 +42,7 @@ pub fn boxed_command(t: &Obj, name: &str, kind: &str, args: &[String], env: &[(S
     if let Some(g) = git { let g = g.display().to_string(); all.extend(["--ro-bind".into(), g.clone(), g]); }
     all.extend(["--die-with-parent".into(), "--".into(), crate::agents::kinds::program(kind).into()]);
     all.extend(args.iter().cloned());
-    all.iter().map(|s| q(s)).collect::<Vec<_>>().join(" ")
+    all.iter().map(|s| crate::flow::start::q(s)).collect::<Vec<_>>().join(" ")
 }
 fn herr(code: &str, msg: String) -> HerdrError { HerdrError { code: code.into(), message: msg } }
 /// Start an agent program in a pane: in the read-only mount while the task's plan waits, else as every program is

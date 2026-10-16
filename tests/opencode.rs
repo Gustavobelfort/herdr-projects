@@ -45,18 +45,27 @@ fn opencode_is_started_with_a_launch_file_that_carries_its_model_effort_and_rule
     use std::os::unix::fs::PermissionsExt; assert_eq!(std::fs::metadata(&f).unwrap().permissions().mode() & 0o777, 0o600);
     assert_eq!(j.s("model"), "anthropic/claude-opus-5-5#high"); assert_eq!(j.s("update"), "disable");
     // Never a catch-all allow: it would come after OpenCode's own rules (`read *.env: ask`) and override them.
-    assert_eq!(j.arr("permissions").iter().map(|r| format!("{}:{}", r.s("action"), r.s("effect"))).collect::<Vec<_>>(), vec!["edit:ask", "shell:ask", "webfetch:ask", "external_directory:ask"]);
+    let asks = |v: &Value| v.arr("permissions").iter().map(|r| format!("{}:{}", r.s("action"), r.s("effect"))).collect::<Vec<_>>();
+    assert_eq!(asks(&j), vec!["edit:ask", "shell:ask", "webfetch:ask", "external_directory:ask"]);
+    // The same rules for each of OpenCode's agents: an agent's own rules come after the top-level ones, so a repo's
+    // config giving one of them `shell: allow` would otherwise cancel the ask.
+    let mut agents: Vec<&String> = j.at("agents").as_object().unwrap().keys().collect(); agents.sort();
+    assert_eq!(agents, ["build", "compaction", "explore", "general", "plan", "scout", "summary", "title"]);
+    assert!(j.at("agents").as_object().unwrap().values().all(|a| asks(a) == asks(&j)));
     let mut keys: Vec<&String> = j.as_object().unwrap().keys().collect(); keys.sort();
-    assert_eq!(keys, ["$schema", "model", "permissions", "update"]);
+    assert_eq!(keys, ["$schema", "agents", "model", "permissions", "update"]);
     // Full access is --auto on the command line: the file says nothing of permissions, so OpenCode's own rules stand.
     let full: Value = serde_json::from_str(&std::fs::read_to_string(launch_file(&dir, "agent", "", "", "full").unwrap()).unwrap()).unwrap();
-    assert!(!full.has("permissions")); assert!(!full.b("model")); // no model named: the file names none
+    assert!(!full.has("permissions") && !full.has("agents")); assert!(!full.b("model")); // no model named: the file names none
     // What a start is given: the file's text inline (read after the repo's own opencode.json, which would otherwise
-    // replace the model and cancel the ask rules), and no self-update under a running agent. Nothing for the other kinds.
+    // replace the model and cancel the ask rules;
+    // too long for a typed line, the pane's shell reads the file into the variable), and no self-update under a
+    // running agent. Nothing for the other kinds.
     let env = launch_env("opencode", &dir, "agent", "openai/gpt-6-sol", "high", "ask").unwrap().unwrap();
-    assert_eq!(env[0].0, "OPENCODE_CONFIG_CONTENT"); assert_eq!(env[1], ("OPENCODE_DISABLE_AUTOUPDATE".to_string(), "1".to_string()));
-    let inline: Value = serde_json::from_str(&env[0].1).unwrap();
-    assert_eq!(inline.s("model"), "openai/gpt-6-sol#high"); assert_eq!(inline.arr("permissions").len(), 4); assert!(!env[0].1.contains('\n'));
+    assert_eq!(env, vec![("OPENCODE_CONFIG_CONTENT".to_string(), format!("$(cat '{}')", dir.join("opencode-agent.json").display())), ("OPENCODE_DISABLE_AUTOUPDATE".into(), "1".into())]);
+    assert_eq!(sw::flow::start::env_command("a1", "opencode", &["--auto".into()], &env), format!("env HERDR_PROJECTS_AGENT=a1 OPENCODE_CONFIG_CONTENT=\"$(cat '{}')\" OPENCODE_DISABLE_AUTOUPDATE=1 opencode --auto", dir.join("opencode-agent.json").display()));
+    let inline: Value = serde_json::from_str(&std::fs::read_to_string(dir.join("opencode-agent.json")).unwrap()).unwrap();
+    assert_eq!(inline.s("model"), "openai/gpt-6-sol#high"); assert_eq!(inline.arr("permissions").len(), 4);
     assert!(launch_env("claude", &dir, "agent", "", "", "full").unwrap().is_none());
 }
 
@@ -113,6 +122,12 @@ fn a_gateways_whole_inventory_is_selectable_not_only_what_opencodes_config_names
     assert!(e.contains("opencode has no model \"gw/nope-9\"") && e.contains("gw/claude-sonnet-4-6") && !e.contains("gpt-image-2"), "{e}");
     let e = set_value("worker.agent", &json!("opencode/gw/gpt-image-2"), &you()).unwrap_err().msg;
     assert!(e.contains("takes no conversation") && e.contains("gw/claude-sonnet-4-6"), "{e}");
+    // The gateway refused its list (a 401, a quota): an unknown name's refusal says so, instead of a plain "no such model".
+    let inv = sw::store::files::data_dir().join("opencode").join("inventory.json"); std::fs::create_dir_all(inv.parent().unwrap()).unwrap();
+    std::fs::write(&inv, json!({ "gw": { "at": 1, "ids": ["claude-sonnet-4-6"], "failed": { "at": 2, "why": "HTTP 401: {\"error\":\"Invalid API key\"}" } } }).to_string()).unwrap();
+    assert_eq!(sw::agents::opencode_models::failed(), vec!["gw: HTTP 401: {\"error\":\"Invalid API key\"}".to_string()]);
+    let e = set_value("worker.agent", &json!("opencode/gw/nope-9"), &you()).unwrap_err().msg;
+    assert!(e.contains("A gateway's inventory could not be read") && e.contains("gw: HTTP 401"), "{e}");
     // The launch file declares the chosen gateway model under its provider, so OpenCode will run it; nothing else of
     // the provider (its URL and key stay in OpenCode's own config), and nothing for a model of another provider.
     let dir = w.base.join("launch");
@@ -151,10 +166,15 @@ fn opencodes_conversation_is_read_from_the_boards_copy_of_its_rows() {
     let idle = json!({ "type": "idle", "seq": 3, "at": 3000, "data": { "time": { "created": 3000 }, "outcome": "succeeded" } });
     let t = read_turn("opencode", &rows(&[user.clone(), tool.clone(), idle.clone()]), 1 << 20).unwrap();
     assert!(t.finished); assert_eq!((t.said.as_str(), t.model.as_str(), t.pos), ("Looking.", "gpt-6-sol", 3000));
-    // A reply cut off at its length (or refused) keeps that ending through the idle row OpenCode always writes after it.
+    // A reply cut off at its length, or refused (OpenCode's `content-filter`), keeps that ending through the idle row
+    // OpenCode always writes after it (a failed one, for a refusal).
     let cut = json!({ "type": "assistant", "seq": 2, "at": 2000, "data": { "id": "m2", "time": { "created": 2000, "completed": 2500 }, "content": [{ "type": "text", "text": "Half of" }], "finish": "length" } });
     let t = read_turn("opencode", &rows(&[user.clone(), cut, idle.clone()]), 1 << 20).unwrap();
     assert_eq!((t.stop.as_str(), t.finished, t.pos), ("length", true, 3000));
+    let refused = json!({ "type": "assistant", "seq": 2, "at": 2000, "data": { "id": "m2", "time": { "created": 2000, "completed": 2500 }, "content": [], "finish": "content-filter" } });
+    let failed = json!({ "type": "idle", "seq": 3, "at": 3000, "data": { "time": { "created": 3000 }, "outcome": "failed" } });
+    let t = read_turn("opencode", &rows(&[user.clone(), refused, failed]), 1 << 20).unwrap();
+    assert_eq!((t.stop.as_str(), t.finished, t.error.as_str()), ("refusal", true, ""));
     // Whether a message went in: its words on a user row since a moment, by the row's own `at`.
     let f = rows(&[user.clone()]);
     assert!(sw::agents::read_turn::holds(&f, "Fix it", 0).unwrap() && sw::agents::read_turn::holds(&f, "Fix it", 1000).unwrap());
@@ -195,7 +215,7 @@ fn the_coordinator_runs_on_opencode_asks_before_it_acts_and_a_new_one_switches_t
     // (coordinator.access ask: the file's rules ask before an edit or a command).
     assert_eq!(a.s("kind"), "opencode"); assert!(!a.b("boxed"));
     let file = state::dir_of(&w.socket).join("opencode-coordinator.json");
-    let env = strs(a.at("env"));
+    let env = strs(a.at("env")); // the fake pane read the file for the shell
     assert_eq!(env.len(), 2); assert_eq!(env[1], "OPENCODE_DISABLE_AUTOUPDATE=1");
     assert_eq!(serde_json::from_str::<Value>(env[0].strip_prefix("OPENCODE_CONFIG_CONTENT=").unwrap()).unwrap().s("model"), "anthropic/claude-haiku-5-5"); // the file's text, inline
     let args = strs(a.at("args"));

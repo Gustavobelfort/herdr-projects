@@ -6,7 +6,7 @@ use std::path::Path;
 
 /// OpenCode's rows, as the board copies them out of its database (agents/opencode.rs): one line per message,
 /// { type: user | assistant | idle | compaction, seq, at, data }. An assistant row carries its text and tool parts,
-/// `finish` (stop, tool-calls, error) and, cut off, `error: { type, message, status }`; an `idle` row ends a turn
+/// `finish` (stop, length, content-filter for a refused reply, tool-calls, error) and, cut off, `error: { type, message, status }`; an `idle` row ends a turn
 /// (`outcome`: succeeded, failed); a failed compaction carries the provider's error too. A turn the human stopped is an
 /// assistant row with `error.type: aborted` and no idle row after it.
 pub fn read_opencode(file: &Path, bytes: u64) -> Option<Turn> {
@@ -28,7 +28,7 @@ pub fn read_opencode(file: &Path, bytes: u64) -> Option<Turn> {
                 last = Some(match d.s("finish") {
                     "error" if d.at("error").s("type") == "aborted" => (K::Interrupt, r, String::new()), // the human stopped it (Esc): no idle row follows
                     "error" => (K::Error, r, err_of(d.at("error"))),
-                    "stop" | "length" | "refusal" => (K::Said, r, String::new()),
+                    "stop" | "length" | "content-filter" => (K::Said, r, String::new()),
                     "" => (if d.at("time").b("completed") { K::Said } else { K::Tool }, r, String::new()),
                     _ => (K::Tool, r, String::new()),
                 });
@@ -52,7 +52,7 @@ pub fn read_opencode(file: &Path, bytes: u64) -> Option<Turn> {
     Some(match kind {
         K::Error => judge(Turn { said: said.clone(), stop: "error".into(), error: err, ..base }, d.at("error").s("type"), status, d.at("error").s("type") == "provider.auth"),
         K::Interrupt => Turn { said, stop: "interrupted".into(), interrupted: true, ..base },
-        K::Idle | K::Said => { let stop = d.s("finish"); Turn { said: said.trim().to_string(), stop: if stop == "length" { "length".into() } else if stop == "refusal" { "refusal".into() } else { "stop".into() }, finished: true, ..base } }
+        K::Idle | K::Said => { let stop = d.s("finish"); Turn { said: said.trim().to_string(), stop: if stop == "length" { "length".into() } else if stop == "content-filter" { "refusal".into() } else { "stop".into() }, finished: true, ..base } }
         _ => Turn { pending: true, said: said.trim().to_string(), ..base },
     })
 }

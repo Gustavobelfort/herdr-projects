@@ -70,11 +70,11 @@ pub fn why_not(k: &str, m: &str) -> Option<String> {
     };
     // OpenCode's list holds models that answer no conversation (an image model, from a gateway's inventory or written in
     // its config): known, so not refused as unknown, but not for a chat.
-    if k == "opencode" && in_list(&names, a, m) && !super::opencode_models::chat_model(cut(a, m).map(|(b, _)| b).unwrap_or(m)) {
-        return Some(format!("{k}: \"{m}\" takes no conversation (an image, embedding, speech or review-only model). It takes {} ({}).", nearest(m, &names.shown, SHOWN).join(", "), source(a, &names)));
-    }
+    let no_chat = |names: &Names| k == "opencode" && in_list(names, a, m) && !super::opencode_models::chat_model(cut(a, m).map(|(b, _)| b).unwrap_or(m));
+    if no_chat(&names) { return Some(format!("{k}: \"{m}\" takes no conversation (an image, embedding, speech or review-only model). It takes {} ({}).", nearest(m, &names.shown, SHOWN).join(", "), source(a, &names))); }
     if in_list(&names, a, m) { return None; }
     if !a.models.list.is_empty() { if let Listing::Names(n) = listed(k, true) { names = n; } } // asked again: the program may have a new one
+    if no_chat(&names) { return Some(format!("{k}: \"{m}\" takes no conversation (an image, embedding, speech or review-only model). It takes {} ({}).", nearest(m, &names.shown, SHOWN).join(", "), source(a, &names))); }
     if in_list(&names, a, m) { return None; }
     // Listed only as its variants (claude-opus-4-8-high): with parameters in brackets, the name alone is taken.
     if a.models.suffix.contains(&"[") && in_list(&names, a, &format!("{m}[")) {
@@ -86,7 +86,8 @@ pub fn why_not(k: &str, m: &str) -> Option<String> {
     let close = nearest(m, shown, SHOWN);
     let some: Vec<String> = shown.iter().filter(|x| close.contains(x)).cloned().collect();
     let more = if shown.len() > SHOWN { format!(", and {} more: `herdr-projects models {k}` lists them all", shown.len() - SHOWN) } else { String::new() };
-    Some(format!("{k} has no model \"{m}\"{}.{} It takes {}{more} ({}). Write it after the program: {k}/{}.", for_signin(&names),
+    let unread = if k == "opencode" { super::opencode_models::failed().into_iter().map(|f| format!(" A gateway's inventory could not be read, so it may be one of its: {f}.")).collect::<String>() } else { String::new() };
+    Some(format!("{k} has no model \"{m}\"{}.{} It takes {}{more} ({}).{unread} Write it after the program: {k}/{}.", for_signin(&names),
         near.as_ref().map(|n| format!(" Did you mean {n}?")).unwrap_or_default(), some.join(", "), source(a, &names), near.or_else(|| some.first().cloned()).unwrap_or_default()))
 }
 /// In a few words, how a model is given to this program and where its names come from (`herdr-projects models`).
