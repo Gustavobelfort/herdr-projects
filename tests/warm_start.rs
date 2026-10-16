@@ -10,7 +10,7 @@ use std::time::{Duration, SystemTime};
 struct Bench { base: PathBuf }
 impl Bench {
     fn new(name: &str) -> Bench {
-        let base = std::env::temp_dir().join(format!("sw-warm-start-{}-{name}", std::process::id()));
+        let base = std::env::temp_dir().canonicalize().unwrap().join(format!("sw-warm-start-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&base);
         std::fs::create_dir_all(base.join("repo/src")).unwrap();
         let b = Bench { base };

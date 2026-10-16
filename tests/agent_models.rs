@@ -10,6 +10,8 @@ use sw::agents::models::say::models_command;
 use sw::store::settings::change::set_value;
 use sw::store::settings::lookup::{setting_text, Scope};
 
+/// The session's own provider variables must not decide whether claude's names are checked.
+fn own_env_cleared() { for v in ["ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY"] { unsafe { std::env::remove_var(v) }; } }
 fn has(text: &str, re: &str) -> bool { regex::Regex::new(re).unwrap().is_match(text) }
 fn refused(name: &str, value: &str, re: &str) { let e = set_value(name, &json!(value), &Scope::you()).unwrap_err(); assert!(has(&e.msg, re), "{name} {value}: {re}: {}", e.msg); }
 fn taken(name: &str, value: &str) { set_value(name, &json!(value), &Scope::you()).unwrap_or_else(|e| panic!("{name} {value}: {}", e.msg)); assert_eq!(setting_text(name, None), value); }
@@ -77,6 +79,7 @@ fn a_model_the_program_does_not_take_is_refused_with_the_ones_it_does() {
 
 #[test]
 fn claude_s_names_follow_its_own_rule_and_a_program_without_a_list_is_not_checked() {
+    own_env_cleared();
     let _w = world();
     for m in ["opus", "sonnet", "haiku", "fable", "opusplan", "default", "opus[1m]", "claude-opus-5-5", "claude-opus-5-5[1m]", "claude-sonnet-4-5-20250929"] { taken("worker.agent", &format!("claude/{m}")); }
     refused("worker.agent", "claude/gpt-5", r#"^worker\.agent: claude has no model "gpt-5"\. It takes .*opus.*claude-opus-5-5.*, and \d+ more: `herdr-projects models claude` lists them all \(its short names, each the newest of its kind, and its full names\)\."#);
@@ -107,6 +110,7 @@ fn claude_s_names_follow_its_own_rule_and_a_program_without_a_list_is_not_checke
 
 #[test]
 fn the_models_command_names_what_each_program_takes_as_a_setting_writes_it() {
+    own_env_cleared();
     let _w = world();
     lists(json!({ "codex": { "taken": ["gpt-6.1-sol", "gpt-6-luna", "codex-auto-review"], "shown": ["gpt-6.1-sol", "gpt-6-luna"] } }));
     let (v, text) = models_command("codex").unwrap();
