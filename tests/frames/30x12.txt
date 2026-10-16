@@ -21,8 +21,8 @@
 ──────────────────────────────
 ❯ Add a task
 ──────────────────────────────
-  Side panel on. alt+p hides
-  it.
+  Side panel on. ctrl+alt+p
+  hides it.
   enter open this task's agent
 == the whole task
  Task details  #5 "Max…  line…

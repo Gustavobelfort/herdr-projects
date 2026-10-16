@@ -12,13 +12,13 @@
 == the task beside it
  herdr-projects
 ▌◐ Max length for
-▌  task titles
  + New task  added …
 ────────────────────
 ❯ Add a task
 ────────────────────
   Side panel on.
-  alt+p hides it.
+  ctrl+alt+p hides
+  it.
   enter open its ag…
 == the whole task
  Task details  #5 "…
