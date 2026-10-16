@@ -20,11 +20,14 @@ itself for what it serves (`GET <baseURL>/models`, with the key the config names
 known but never offered. A model chosen that way is declared under its provider in the launch file, so OpenCode
 runs it; the config itself is never touched.
 
-**One launch file per start.** OpenCode takes its model and its permission rules from a config file and from nothing
-on its command line, so each start writes one (`opencode-<role>.json`, mode 0600, in the task's own folder or the
-Coordinator's) and names it in the program's environment (`OPENCODE_CONFIG`). OpenCode reads it on top of its own
-config, so your providers stay; the file holds only the model, the rules of the role's access, `update: disable`
-(no self-update under a running agent) and, for a gateway model the config does not name, that one model entry:
+**One launch config per start.** OpenCode takes its model and its permission rules from config and from nothing on
+its command line, so each start writes one small file (`opencode-<role>.json`, mode 0600, in the task's own folder or
+the Coordinator's, for the record) and hands its text to the program inline (`OPENCODE_CONFIG_CONTENT`). OpenCode
+layers its config: its own global file, then `OPENCODE_CONFIG`, then the repo's own `opencode.json`, then the inline
+text; a board agent works inside a repo, whose own file would replace the chosen model and cancel the ask rules if the
+board's came before it, so the board's comes last. Your providers stay; the config holds only the model, the rules of
+the role's access, `update: disable` (no self-update under a running agent) and, for a gateway model your config does
+not name, that one model entry:
 
 | `<role>.access` | What the file says | And on the command line |
 |---|---|---|
@@ -35,7 +38,7 @@ The file's rules come after OpenCode's own (among them: ask before reading a `.e
 catch-all `allow`: that would override those and let an agent in `ask` mode read a secrets file without asking.
 
 So a Coordinator with `coordinator.access ask` asks in its own pane before it acts, as it does on Claude Code. The
-program is started by a command typed at the pane's shell (`env OPENCODE_CONFIG=… opencode …`), the way a plan's
+program is started by a command typed at the pane's shell (`env OPENCODE_CONFIG_CONTENT=… opencode …`), the way a plan's
 writer is started in its read-only mount, because herdr's `agent start` hands a program no environment; herdr then
 finds the agent in the pane by itself. `--standalone` keeps every board agent out of OpenCode's shared background
 service, so one agent's restart never touches another's.
@@ -51,7 +54,7 @@ runs, also on a conversation reopened with another model: `coordinator new --age
 does not exist and reopens one that does) and, whenever it reads a conversation, copies its rows into one JSON-lines
 file of its own (`data/opencode/<session>.jsonl`, written again only when the database has more or newer rows),
 which its readers take as they take any other program's file: the last message, a finished or a pending turn, an
-error with its status (a `401` is a login; a provider's `503` for a model no account serves is lasting when its words
+error with its status (a turn you stopped with Esc is an interrupt, not an error; a reply cut off at its length says so; a `401` is a login; a provider's `503` for a model no account serves is lasting when its words
 say the model is not supported; an overload or a dropped connection passes by itself and is retried), the tokens and
 the model of each reply, and the words of the chat. The copy needs `sqlite3` on the machine (macOS has it; `apt
 install sqlite3`). A new chat the program begins in the Coordinator's folder is followed as for the other programs:

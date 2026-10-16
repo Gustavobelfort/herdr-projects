@@ -46,8 +46,12 @@ fn gateway_model(model: &str) -> Option<(String, String)> {
     let served = super::opencode_models::gateways().iter().any(|(n, _, _)| n == provider) && super::opencode_models::names().iter().any(|x| x == m);
     served.then(|| (provider.to_string(), id.to_string()))
 }
-/// The environment a start needs: the launch file, and no self-update under a running agent.
-pub fn launch_env(file: &Path) -> Vec<(String, String)> { vec![("OPENCODE_CONFIG".into(), file.display().to_string()), ("OPENCODE_DISABLE_AUTOUPDATE".into(), "1".into())] }
+/// The environment a start needs: the launch file's text inline (`OPENCODE_CONFIG_CONTENT` is read after the repo's own
+/// `opencode.json`, where `OPENCODE_CONFIG` would be read before it and lose), and no self-update under a running agent.
+pub fn launch_env(file: &Path) -> Vec<(String, String)> {
+    let text = std::fs::read_to_string(file).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()).map(|v| v.to_string()).unwrap_or_default();
+    vec![("OPENCODE_CONFIG_CONTENT".into(), text), ("OPENCODE_DISABLE_AUTOUPDATE".into(), "1".into())]
+}
 /// `<provider>/<model>#<effort>`, the launch file's `model`: the effort is the model's variant, none for `default`.
 /// None for no model: OpenCode's own default.
 pub fn model_arg(model: &str, effort: &str) -> Option<String> {

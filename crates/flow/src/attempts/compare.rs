@@ -109,9 +109,10 @@ fn compare(id: &str, g: &mut Guard, t: &Task) -> Res<Obj> {
     let started_at = now();
     let x = launch_extras(t, "reviewer", &k, 0, "", None)?;
     g.set(|t| { t.obj_mut("link").put("reviewer", json!({ "pane": pane, "tab": tab, "agent": name, "kind": k })); t.put("reviewSession", x.session.clone().map(Value::String).unwrap_or(Value::Null)); })?;
+    let env = crate::agents::adapter::launch_env(&k, &dir_of(t.s("id")), "reviewer", &model, &effort, &who.access)?.unwrap_or_default(); // OpenCode's launch file, as for a review
     let start_with = |hook: Vec<String>| -> Res<()> {
         let args = start::start_args(&k, &start::StartOpts { model: model.clone(), effort: effort.clone(), fast: Some(who.fast), access: who.access.clone(), session: x.session.clone().unwrap_or_default(), extra: hook, ..Default::default() })?;
-        match api.agent_start(&name, &k, &pane, &args, 60000) { Ok(_) => { crate::submit::settle(&api, &pane, &std::iter::once(crate::agents::kinds::program(&k).to_string()).chain(args).collect::<Vec<_>>().join(" ")); Ok(()) } Err(e) if e.code == "agent_not_ready" => Ok(()),
+        match flow::start::program(&api, &name, &k, &pane, &args, &env, None) { Ok(_) => { crate::submit::settle(&api, &pane, &std::iter::once(crate::agents::kinds::program(&k).to_string()).chain(args).collect::<Vec<_>>().join(" ")); Ok(()) } Err(e) if e.code == "agent_not_ready" => Ok(()),
             Err(e) => Err(crate::agents::start_failed::say(&api, &crate::agents::start_failed::Start { kind: &k, setting: "reviewer.agent", again: "pick again" }, &pane, &e.message, &crate::store::files::dir_of(t.s("id")).join("runner.log")).into()) }
     };
     if let Err(e) = start_with(x.hook.clone()) { if x.hook.is_empty() { return Err(e); } start_with(vec![])?; }

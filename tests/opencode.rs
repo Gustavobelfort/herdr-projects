@@ -51,9 +51,12 @@ fn opencode_is_started_with_a_launch_file_that_carries_its_model_effort_and_rule
     // Full access is --auto on the command line: the file says nothing of permissions, so OpenCode's own rules stand.
     let full: Value = serde_json::from_str(&std::fs::read_to_string(launch_file(&dir, "agent", "", "", "full").unwrap()).unwrap()).unwrap();
     assert!(!full.has("permissions")); assert!(!full.b("model")); // no model named: the file names none
-    // What a start is given: the file, and no self-update under a running agent. Nothing for the other kinds.
-    let env = launch_env("opencode", &dir, "agent", "", "", "full").unwrap().unwrap();
-    assert_eq!(env, vec![("OPENCODE_CONFIG".to_string(), dir.join("opencode-agent.json").display().to_string()), ("OPENCODE_DISABLE_AUTOUPDATE".into(), "1".into())]);
+    // What a start is given: the file's text inline (read after the repo's own opencode.json, which would otherwise
+    // replace the model and cancel the ask rules), and no self-update under a running agent. Nothing for the other kinds.
+    let env = launch_env("opencode", &dir, "agent", "openai/gpt-6-sol", "high", "ask").unwrap().unwrap();
+    assert_eq!(env[0].0, "OPENCODE_CONFIG_CONTENT"); assert_eq!(env[1], ("OPENCODE_DISABLE_AUTOUPDATE".to_string(), "1".to_string()));
+    let inline: Value = serde_json::from_str(&env[0].1).unwrap();
+    assert_eq!(inline.s("model"), "openai/gpt-6-sol#high"); assert_eq!(inline.arr("permissions").len(), 4); assert!(!env[0].1.contains('\n'));
     assert!(launch_env("claude", &dir, "agent", "", "", "full").unwrap().is_none());
 }
 
@@ -129,6 +132,9 @@ fn opencodes_conversation_is_read_from_the_boards_copy_of_its_rows() {
     assert_eq!(done.usage.as_ref().map(|u| (u.inp, u.out)), Some((13336.0, 16.0)));
     let login = read_turn("opencode", &fixture("opencode-unauthorized"), 1 << 20).unwrap();
     assert_eq!((login.stop.as_str(), login.error.as_str(), login.auth, login.passing, login.finished), ("error", "Invalid API key", true, false, false));
+    // The human stopped it (Esc): an assistant row with `error.type: aborted` and no idle row after it.
+    let stopped = read_turn("opencode", &fixture("opencode-interrupted-made"), 1 << 20).unwrap();
+    assert_eq!((stopped.stop.as_str(), stopped.interrupted, stopped.error.as_str(), stopped.finished, stopped.said.as_str()), ("interrupted", true, "", false, "Reading the file now."));
     let no_account = read_turn("opencode", &fixture("opencode-no-account-made"), 1 << 20).unwrap();
     assert!(no_account.error.starts_with("auth_unavailable: no auth available"), "{}", no_account.error);
     assert_eq!((no_account.passing, no_account.reason.as_str(), no_account.auth), (false, "", false)); // a provider's 503 for a model no account serves is lasting: its words say "not supported"
@@ -143,8 +149,16 @@ fn opencodes_conversation_is_read_from_the_boards_copy_of_its_rows() {
     let t = read_turn("opencode", &rows(&[user.clone(), tool.clone()]), 1 << 20).unwrap();
     assert!(t.pending); assert_eq!(t.said, "Looking.");
     let idle = json!({ "type": "idle", "seq": 3, "at": 3000, "data": { "time": { "created": 3000 }, "outcome": "succeeded" } });
-    let t = read_turn("opencode", &rows(&[user.clone(), tool.clone(), idle]), 1 << 20).unwrap();
+    let t = read_turn("opencode", &rows(&[user.clone(), tool.clone(), idle.clone()]), 1 << 20).unwrap();
     assert!(t.finished); assert_eq!((t.said.as_str(), t.model.as_str(), t.pos), ("Looking.", "gpt-6-sol", 3000));
+    // A reply cut off at its length (or refused) keeps that ending through the idle row OpenCode always writes after it.
+    let cut = json!({ "type": "assistant", "seq": 2, "at": 2000, "data": { "id": "m2", "time": { "created": 2000, "completed": 2500 }, "content": [{ "type": "text", "text": "Half of" }], "finish": "length" } });
+    let t = read_turn("opencode", &rows(&[user.clone(), cut, idle.clone()]), 1 << 20).unwrap();
+    assert_eq!((t.stop.as_str(), t.finished, t.pos), ("length", true, 3000));
+    // Whether a message went in: its words on a user row since a moment, by the row's own `at`.
+    let f = rows(&[user.clone()]);
+    assert!(sw::agents::read_turn::holds(&f, "Fix it", 0).unwrap() && sw::agents::read_turn::holds(&f, "Fix it", 1000).unwrap());
+    assert!(!sw::agents::read_turn::holds(&f, "Fix it", 5000).unwrap() && !sw::agents::read_turn::holds(&f, "Something else", 0).unwrap());
     // The chat's words: what was said, by whom, nothing of the tools.
     let f = rows(&[user, tool, json!({ "type": "assistant", "seq": 4, "at": 4000, "data": { "id": "m4", "content": [{ "type": "text", "text": "Done." }], "finish": "stop", "time": { "created": 4000, "completed": 4100 } } })]);
     assert_eq!(talk_of("opencode", Some(&f), "", Path::new("/"), 10).unwrap().iter().map(|m| format!("{}: {}", if m.you { "you" } else { "them" }, m.text)).collect::<Vec<_>>(), vec!["you: Fix it", "them: Looking.", "them: Done."]);
@@ -181,7 +195,9 @@ fn the_coordinator_runs_on_opencode_asks_before_it_acts_and_a_new_one_switches_t
     // (coordinator.access ask: the file's rules ask before an edit or a command).
     assert_eq!(a.s("kind"), "opencode"); assert!(!a.b("boxed"));
     let file = state::dir_of(&w.socket).join("opencode-coordinator.json");
-    assert_eq!(strs(a.at("env")), vec![format!("OPENCODE_CONFIG={}", file.display()), "OPENCODE_DISABLE_AUTOUPDATE=1".to_string()]);
+    let env = strs(a.at("env"));
+    assert_eq!(env.len(), 2); assert_eq!(env[1], "OPENCODE_DISABLE_AUTOUPDATE=1");
+    assert_eq!(serde_json::from_str::<Value>(env[0].strip_prefix("OPENCODE_CONFIG_CONTENT=").unwrap()).unwrap().s("model"), "anthropic/claude-haiku-5-5"); // the file's text, inline
     let args = strs(a.at("args"));
     assert_eq!(&args[..2], &["--standalone", "--session"]); assert!(args[2].starts_with("ses_")); assert_eq!(args.len(), 3);
     let j: Value = serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
@@ -222,7 +238,7 @@ fn a_task_on_opencode_is_started_the_same_way_and_a_login_error_in_its_conversat
     let args = strs(a.at("args"));
     assert_eq!(&args[..2], &["--standalone", "--session"]); assert!(args.contains(&"--auto".to_string()));
     let file = sw::store::files::dir_of(&id).join("opencode-agent.json");
-    assert_eq!(strs(a.at("env"))[0], format!("OPENCODE_CONFIG={}", file.display()));
+    assert!(strs(a.at("env"))[0].starts_with("OPENCODE_CONFIG_CONTENT={"));
     assert_eq!(serde_json::from_str::<Value>(&std::fs::read_to_string(&file).unwrap()).unwrap().s("model"), "ollama/gemma-4-e4b");
     assert_eq!((t.s("stage"), t.at("failure").b("auth")), ("failed", true));
     assert!(t.s("msg").contains("Needs a login"), "{}", t.s("msg"));

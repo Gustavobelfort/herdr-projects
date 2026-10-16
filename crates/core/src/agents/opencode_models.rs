@@ -7,7 +7,7 @@
 use super::homes::opencode_home;
 use crate::clock::now;
 use crate::json::*;
-use crate::store::files::{data_dir, read_json, read_obj, read_text, user_home, write_json};
+use crate::store::files::{data_dir, read_json, read_obj, read_text, user_home, write_private};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -71,10 +71,13 @@ pub fn gateways() -> Vec<(String, String, String)> {
     out
 }
 fn fetch(url: &str, key: &str) -> Option<Vec<String>> {
+    // The key goes to curl on its standard input (`-H @-`), never on its command line, where any process could read it.
     let mut c = Command::new("curl");
     c.args(["-fsS", "--max-time", "20"]);
-    if !key.is_empty() { c.args(["-H", &format!("Authorization: Bearer {key}"), "-H", &format!("x-api-key: {key}")]); }
-    let out = c.arg(format!("{url}/models")).stdin(Stdio::null()).stderr(Stdio::null()).output().ok()?;
+    if !key.is_empty() { c.args(["-H", "@-"]); }
+    let mut child = c.arg(format!("{url}/models")).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn().ok()?;
+    if let Some(mut stdin) = child.stdin.take() { use std::io::Write; if !key.is_empty() { let _ = stdin.write_all(format!("Authorization: Bearer {key}\nx-api-key: {key}\n").as_bytes()); } }
+    let out = child.wait_with_output().ok()?;
     if !out.status.success() { return None; }
     let v: Value = serde_json::from_slice(&out.stdout).ok()?;
     let mut m: Vec<&Value> = v.arr("data").iter().collect();
@@ -96,8 +99,8 @@ pub fn names() -> Vec<String> {
         };
         out.extend(ids.into_iter().map(|id| format!("{name}/{id}")));
     }
-    if changed { let _ = write_json(&file(), &Value::Object(kept)); }
+    if changed { let _ = write_private(&file(), &Value::Object(kept).to_string()); } // ids only, but no wider than it need be
     out
 }
 /// Models the gateways list that take a chat: an image, embedding, speech or review-only model answers no conversation.
-pub fn chat_model(id: &str) -> bool { !(id.contains("image") || id.contains("embed") || id.contains("tts") || id.contains("whisper") || id.contains("auto-review")) }
+pub fn chat_model(name: &str) -> bool { let id = name.rsplit('/').next().unwrap_or(name); !(id.contains("image") || id.contains("embed") || id.contains("tts") || id.contains("whisper") || id.contains("auto-review")) }

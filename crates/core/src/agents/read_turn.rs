@@ -28,6 +28,8 @@ pub fn head_of(file: &Path, bytes: usize) -> String {
     String::from_utf8_lossy(&buf[..n]).into_owned()
 }
 /// A timestamp as milliseconds; 0 when it is not one.
+/// When a saved line was written: its `timestamp`, or OpenCode's `at` (the board's copy of its rows, agents/opencode.rs).
+fn stamp(e: &Value) -> i64 { let t = when(e.at("timestamp")); if t != 0 { t } else { e.i("at") } }
 pub fn when(ts: &Value) -> i64 {
     match ts {
         Value::String(s) => chrono::DateTime::parse_from_rfc3339(s).map(|d| d.timestamp_millis()).unwrap_or(0),
@@ -65,10 +67,10 @@ pub fn holds(file: &Path, text: &str, since: i64) -> std::io::Result<bool> {
         let mut oldest: Option<i64> = None;
         for l in text.split('\n') {
             if l.is_empty() { continue; }
-            if oldest.is_none() { oldest = serde_json::from_str::<Value>(l).ok().map(|e| when(e.at("timestamp"))).filter(|t| *t != 0); }
+            if oldest.is_none() { oldest = serde_json::from_str::<Value>(l).ok().map(|e| stamp(&e)).filter(|t| *t != 0); }
             if !plain.is_empty() && !l.contains(&plain) { continue; }
             let Ok(e) = serde_json::from_str::<Value>(l) else { continue };
-            if e.s("type") != "queue-operation" && when(e.at("timestamp")) >= since - 2000 && e.to_string().contains(&kept) { return Ok(true); }
+            if e.s("type") != "queue-operation" && stamp(&e) >= since - 2000 && e.to_string().contains(&kept) { return Ok(true); }
         }
         if len >= size || oldest.map(|o| o < since - 2000).unwrap_or(false) { return Ok(false); }
         bytes *= 4;
