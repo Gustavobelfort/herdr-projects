@@ -35,7 +35,7 @@ fn press(s: &mut State, p: &Press, fx: &mut Vec<Effect>) {
     let again = s.closing.is_some();
     s.closing = None;
     if again && is(p, K::Close) { fx.push(Effect::Close); return; }
-    if !s.paste_text.is_empty() { s.paste_text.clear(); return; }
+    if !s.paste_text.is_empty() { return super::paste::key(s, p); }
     let (esc, close, tab) = (is(p, K::Back), is(p, K::Close), is(p, K::Delegate));
     // An error stays until esc dismisses it; anything else is gone with the next key.
     if !s.msg.is_empty() && s.msg_kind == Ink::Red { if esc { s.msg.clear(); return super::pending::dismiss(s); } } else { s.msg.clear(); }
@@ -54,7 +54,7 @@ fn press(s: &mut State, p: &Press, fx: &mut Vec<Effect>) {
         // step only shows how the board closes (the popup closes on it).
         if s.mode != Mode::New { s.mode = Mode::New; s.input.set_text(""); }
         else if !s.value().is_empty() {
-            if !text.is_empty() { s.draft_away = Some(Away { text: s.value(), to: if s.reply { r.as_ref().map(|r| r.t("id")).unwrap_or_default() } else { String::new() }, cwd: s.ctx.cwd.clone(), warned: false }); s.flash(format!("Put away. {} brings it back.", key_name("undo")), Ink::Muted); }
+            if !text.is_empty() { s.draft_away = Some(Away { text: s.value(), to: if s.reply { r.as_ref().map(|r| r.t("id")).or_else(|| super::coords::talking(s).map(|_| s.sel.clone())).unwrap_or_default() } else { String::new() }, cwd: s.ctx.cwd.clone(), warned: false }); s.flash(format!("Put away. {} brings it back.", key_name("undo")), Ink::Muted); }
             s.input.set_text("");
         }
         else if s.full { return act::fold_panel(s); }

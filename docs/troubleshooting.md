@@ -7,7 +7,7 @@
 
 | Command | Tells you |
 |---|---|
-| `herdr-projects doctor` | whether an older install (herdr-superwork, herdr-projects 0.2) is still around, and takes over what is left of it ([older installs](old-installs.md)) |
+| `herdr-projects doctor` | the health check: every problem below in one run, each with what to do ([the health check](#the-health-check)) |
 | `herdr-projects install` | writes the `herdr-projects` launcher again, and says if something else of that name comes first on your PATH ([installing](install.md)) |
 | `herdr-projects models [program]` | the model names each agent program takes here, or why its list cannot be read ([models](models.md)) |
 | `herdr-projects machines` | whether each other machine answers, and why not ([other machines](other-machines.md)) |
@@ -15,9 +15,30 @@
 | `herdr-projects details <id>` | everything about one task: reviews, hand-overs, limits, what it waits for |
 | `herdr workspace list` | whether Herdr itself runs and answers |
 
+## The health check
+
+`herdr-projects doctor` looks at everything below at once and takes about a second. A line with `✓` is fine. A line
+with `✗` is a problem, with what to do under it. It exits 1 when there is a problem, so a script can run it too.
+
+| It checks | A problem it reports | What to do |
+|---|---|---|
+| this program | its version and how it was installed (downloaded, built from source); older than the plugin's own version | `herdr-projects update`, or build it again |
+| the launcher | `~/.herdr-projects/data/bin/herdr-projects` (what agents and hooks run) is missing, names a program that is gone, or not the plugin's | `sh <plugin folder>/bin/run.sh install`, or open the board once from Herdr |
+| your PATH | `herdr-projects` is not on it, or something else of that name comes first | put the launcher's folder first ([installing](install.md#the-command-on-your-path)) |
+| Herdr and the plugin | Herdr not found, older than the plugin needs, the plugin not installed, turned off, or linked to a folder that is gone | install or update Herdr; `herdr plugin enable herdr-projects`; link or install the plugin again |
+| each agent program your settings name | not installed, older than the board was checked on, not signed in (Claude Code, Codex and Cursor can say), missing Herdr's integration | install it or choose another; `claude auth login`, `codex login`, `cursor-agent login`; `herdr integration install <name>` |
+| model and effort settings | a model the program does not take, an effort it does not have, a program that cannot do its role, a value written by hand that does not count | `herdr-projects set <setting> …` ([models](models.md)) |
+| other machines | one does not answer, runs an older version, or cannot ask this one | what `herdr-projects machines` says ([other machines](other-machines.md)) |
+| disk space | under 10 GB free on a disk that holds the board's data, your repos, worktrees, build caches or temporary files: a task's setup may fail there | free some space, starting with the leftovers below |
+| leftovers | the worktree of a done or archived task (a clean-up keeps one with unsaved work), a worktree on a task branch no task has, one git still lists whose folder is gone, an old warm build in `~/.cache/herdr-projects` | the `git worktree remove`, `git worktree prune` or `rm -rf` it names. It never removes anything itself |
+| older installs | herdr-superwork or herdr-projects 0.2 still in the way | it takes over what it can, and says what is left ([older installs](old-installs.md)) |
+
+Other machines are asked only when there are some, and each for at most 5 seconds. A done task's worktree is no
+leftover while its clean-up is still to come, or when `workspace.cleanup` is `false`.
+
 ## An agent could not start
 
-The row says `Could not start: …` with the reason, for example `codex is not logged in` or `codex does not know the model it was given`. Fix what it says, then delegate again.
+The row says `Could not start: …` with the reason, for example `codex is not logged in` or `sol-6.1 can't be used with your ChatGPT sign-in`. Fix what it says, then delegate again.
 
 The full table of reasons and fixes: [when an agent could not start](could-not-start.md).
 
@@ -29,18 +50,31 @@ setup, and trust the folder if it asks ([agent programs](agents.md#before-a-prog
 **A wrong name is refused when you set it**, with the names the program does take and the nearest one:
 
 ```
-$ herdr-projects set worker.agent codex/gpt-5.5
-worker.agent: codex has no model "gpt-5.5". It takes gpt-6.1-sol, gpt-6-astra, gpt-6-sol, … (from `codex debug models`).
-Write it after the program: codex/gpt-6.1-sol.
+$ herdr-projects set worker.agent codex/sol-6.1
+worker.agent: codex has no model "sol-6.1" for your ChatGPT sign-in (pro plan). Did you mean gpt-6.1-sol? It takes
+gpt-6.1-sol, gpt-6-astra, gpt-6-sol, … (codex's own list for that sign-in). Write it after the program: codex/gpt-6.1-sol.
 ```
 
-- **See what a program takes:** `herdr-projects models codex`.
+- **See what a program takes:** `herdr-projects models codex`. For Codex that is what your own sign-in can use: a ChatGPT
+  sign-in and an API key take different names.
 - **"Its list cannot be read":** the program is installed but its list command failed (not logged in, offline). Run that
   list command in a terminal to see why, or leave the model out.
 - **A new Claude model is refused:** the board's table of Claude names is older than the model. Use the short name
   (`claude/opus`): it always means the newest of its kind. Updating the board (`herdr-projects update`) brings the new
   names.
 - **An effort is refused:** each program has its own levels. The refusal lists the ones it has.
+
+### "can't be used with your ChatGPT sign-in" while the agent works
+
+Codex refused the model at the agent's first turn (`The 'sol-6.1' model is not supported when using Codex with a
+ChatGPT account`). The board catches it:
+
+- **`…: started again on codex's own default model`**: the board had given Codex that model; Codex now works on its own
+  default. Nothing to do. To choose another, `herdr-projects models codex` lists the ones your sign-in can use.
+- **`Agent stopped: … can't be used with your ChatGPT sign-in; try gpt-6.1-sol`**: its default was refused too, or the
+  board gave it no model (then the name comes from Codex's own `model` in `~/.codex/config.toml`). Choose one for the
+  task, `herdr-projects set worker.agent codex/gpt-6.1-sol --task <id>`, or fix that line, then `Ctrl+L` (retry): the
+  agent starts again on it.
 
 More: [models and effort](models.md).
 
@@ -58,10 +92,11 @@ Find what its row says:
 | `Stopped without a summary` | the agent stopped and the board cannot tell if it finished | `Ctrl+R` tells it to go on; `Ctrl+L` takes the work as it is |
 | `Agent's connection dropped, trying again in 2m` | the provider cut the turn off | nothing: the board retries by itself ([a turn cut off by the provider](provider-errors.md)) |
 | `Agent stopped` | an error waiting cannot fix: a usage limit, a refusal | read the reason in the panel; reply, or `Ctrl+R` |
+| `Agent stopped: … can't be used with your ChatGPT sign-in` | its program refused its model | choose a model, then `Ctrl+L` ([above](#cant-be-used-with-your-chatgpt-sign-in-while-the-agent-works)) |
 | `Needs a login` | the agent's program is logged out | log in (go into the agent with `Enter`), then reply or `Ctrl+R` |
 | `stopped at its 2h limit` | it reached `limit.time` or `limit.tokens` | `Ctrl+R` to continue, a higher limit, or `Ctrl+L` to take it as it is ([limits](limits.md)) |
 | `resolving a conflict with main` | main changed under it; its agent is fixing that | wait |
-| `behind main` | main could not be brought in | the board tries again every minute; check your network, or put your checkout back on its branch ([how work gets done](how-work-gets-done.md#staying-current-with-main)) |
+| `behind main` | main could not be brought in; the work itself is fine | the board tries again every minute; the reason is in the panel ([below](#behind-main-main-could-not-be-fetched)) |
 | `Waiting for GitHub checks · 2 of 3 passed` | the pull request's checks still run | wait: it merges by itself once they pass |
 | `Could not read GitHub's checks` | `gh` is not logged in, or its token may not read Actions and Commit statuses | log `gh` in, or give the token those two read permissions ([how work gets done](how-work-gets-done.md#a-fine-grained-github-token-is-enough)) |
 | `The check stands still · nothing finished for 13m` | the repo's check hangs | look at what the check runs ([the check's progress](check-progress.md)) |
@@ -71,6 +106,33 @@ agent and answer it there.
 
 **An agent asked a question in plain words and stopped**: the board takes that as finished and reviews it. Reply to the
 agent, and it goes on ([an agent that waits for you](waiting-for-you.md)).
+
+## Behind main: main could not be fetched
+
+Before a finished task is reviewed, and again right before it merges, the board fetches main and merges it into the
+task's branch. When that fetch fails, nothing is failed: the task is checked and reviewed as usual, then waits as
+`behind main`. It cannot be approved until it is up to date, and the board tries again by itself every minute. When
+the remote cannot be reached at all, so the branch cannot be pushed either, the task waits the same way before its
+push and review, and those run by themselves once the remote answers. A merge you had approved waits the same way,
+with nothing merged: approve it again once the row is back to ready.
+
+The panel (`Alt+P`) says why in plain words under **Behind main**, and what git itself said under **Details**:
+
+| The reason says | What to do |
+|---|---|
+| origin asked for a login | make `git fetch origin` work in your checkout without a prompt: an SSH key loaded in the agent, or a credential helper. The board never types a password |
+| origin did not answer within 60 seconds | the same, if it waits for a password or a passphrase; otherwise a slow or busy remote, and the next try may pass |
+| origin could not be reached | the network or the server: nothing to do, the board tries again |
+| origin has no branch … | the remote's main branch has another name, or the branch the task started from (`workspace.from`) is gone: `git fetch origin`, then `git remote set-head origin --auto` in your checkout, or push that branch again |
+| git's lock file … stayed in the way | another git command was writing the same ref the whole time, or one that stopped left its `.lock` file behind: if no git command runs in that repo, delete the file it names |
+| origin is not a repository the board can read | `git remote -v` shows where origin points |
+
+Many tasks of one repo finishing at once never get in each other's way: they share one copy of main (every worktree
+of a repo writes the same `origin/main`), so the board fetches it for one task at a time, and a task that waited for
+another's fetch takes that one's result. A fetch that git refused because another program fetched at that very moment
+(an agent's own `git fetch`, yours, an editor's) is tried again after 2 and 4 seconds, and a copy that program just
+fetched counts. A remote whose main is not called `main` and was never named in your clone (no `origin/HEAD`, as after
+`git remote add`) is asked which branch it is, and that branch is fetched, once.
 
 ## Where the logs are
 

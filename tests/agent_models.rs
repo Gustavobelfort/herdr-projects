@@ -1,6 +1,6 @@
 //! Model names (HP-16): a model a program does not take is refused when a setting names it, with the names it does
-//! take, read from the program's own list (codex, pi, cursor, opencode) or its own rule (claude); a program with
-//! neither, or pointed at a provider of its own, is not checked; `herdr-projects models` lists them.
+//! take, read from the program's own list (codex's for its sign-in, pi, cursor, opencode) or its own rule (claude); a
+//! program with neither, or pointed at a provider of its own, is not checked; `herdr-projects models` lists them.
 use crate::common;
 use common::*;
 use serde_json::json;
@@ -115,7 +115,7 @@ fn the_models_command_names_what_each_program_takes_as_a_setting_writes_it() {
     lists(json!({ "codex": { "taken": ["gpt-6.1-sol", "gpt-6-luna", "codex-auto-review"], "shown": ["gpt-6.1-sol", "gpt-6-luna"] } }));
     let (v, text) = models_command("codex").unwrap();
     assert_eq!(v["models"], json!(["gpt-6.1-sol", "gpt-6-luna"]));
-    assert!(text.ends_with("worker.agent codex/gpt-6.1-sol:\n\ncodex/gpt-6.1-sol\ncodex/gpt-6-luna"), "{text}");
+    assert!(text.contains("worker.agent codex/gpt-6.1-sol:\n\ncodex/gpt-6.1-sol\ncodex/gpt-6-luna\n\nEffort"), "{text}");
     let (_, all) = models_command("").unwrap();
     assert!(has(&all, r"(?m)^codex +codex/gpt-6\.1-sol, codex/gpt-6-luna$"), "{all}");
     assert!(has(&all, r"(?m)^claude +\d+ names, such as claude/default, claude/fable, claude/opus, claude/sonnet: herdr-projects models claude lists them all$"), "{all}");
@@ -131,7 +131,10 @@ fn real_programs_the_list_is_asked_of_the_program_and_kept() {
     let bin = w.base.join("bin");
     std::fs::create_dir_all(&bin).unwrap();
     let count = w.base.join("asked");
-    std::fs::write(bin.join("codex"), format!("#!/bin/sh\necho x >> {}\nprintf '%s' '{CODEX}'\n", count.display())).unwrap();
+    // Its app-server answers for a ChatGPT sign-in, as `codex app-server` does: JSON-RPC, one line each way.
+    let page = r#"{"id":1,"result":{"data":[{"id":"gpt-6.1-sol","model":"gpt-6.1-sol","hidden":false},{"id":"gpt-6-luna","model":"gpt-6-luna","hidden":false},{"id":"codex-auto-review","model":"codex-auto-review","hidden":true}],"nextCursor":null}}"#;
+    let account = r#"{"id":2,"result":{"account":{"type":"chatgpt","email":"x@y","planType":"pro"},"requiresOpenaiAuth":true}}"#;
+    std::fs::write(bin.join("codex"), format!("#!/bin/sh\necho \"$1\" >> {}\nif [ \"$1\" = app-server ]; then\n  while read l; do case \"$l\" in *'\"model/list\"'*) printf '%s\\n' '{page}';; *'\"account/read\"'*) printf '%s\\n' '{account}';; esac; done\n  exit 0\nfi\nprintf '%s' '{CODEX}'\n", count.display())).unwrap();
     use std::os::unix::fs::PermissionsExt;
     std::fs::set_permissions(bin.join("codex"), std::fs::Permissions::from_mode(0o755)).unwrap();
     let run = |args: &[&str]| { let o = std::process::Command::new(env!("CARGO_BIN_EXE_herdr-projects")).args(args).current_dir(&w.root)
@@ -140,14 +143,22 @@ fn real_programs_the_list_is_asked_of_the_program_and_kept() {
     let asked = || std::fs::read_to_string(&count).unwrap_or_default().lines().count();
     let (code, _, err) = run(&["set", "worker.agent", "codex/gpt-5.5"]);
     assert_eq!(code, 1);
-    assert!(err.contains("codex has no model \"gpt-5.5\". It takes gpt-6.1-sol, gpt-6-luna"), "{err}");
+    assert!(err.contains("codex has no model \"gpt-5.5\" for your ChatGPT sign-in (pro plan). It takes gpt-6.1-sol, gpt-6-luna (codex's own list for that sign-in)"), "{err}");
     assert_eq!(asked(), 1, "asked once: the list it gave is under a minute old");
+    assert_eq!(std::fs::read_to_string(&count).unwrap(), "app-server\n", "its app-server, for the account it is signed in with");
     let (code, out, err) = run(&["set", "worker.agent", "codex/gpt-6-luna"]);
     assert_eq!(code, 0, "{err}");
     assert!(out.contains("codex/gpt-6-luna"));
     assert_eq!(asked(), 1, "kept: not asked again");
     let (_, out, _) = run(&["models", "codex"]);
     assert!(out.contains("codex/gpt-6.1-sol\ncodex/gpt-6-luna"), "{out}");
+    assert!(out.contains("(here: your ChatGPT sign-in (pro plan))"), "{out}");
+    // An app-server that gives no list (an older codex): its list command instead, with no sign-in to name.
+    std::fs::remove_file(sw::store::files::data_dir().join("models.json")).unwrap();
+    std::fs::write(bin.join("codex"), format!("#!/bin/sh\necho \"$1\" >> {}\n[ \"$1\" = app-server ] && exit 1\nprintf '%s' '{CODEX}'\n", count.display())).unwrap();
+    let (code, _, err) = run(&["set", "worker.agent", "codex/gpt-5.5"]);
+    assert_eq!(code, 1);
+    assert!(err.contains("codex has no model \"gpt-5.5\". It takes gpt-6.1-sol, gpt-6-luna (from `codex debug models`)"), "{err}");
     // Installed, but its list cannot be read (not logged in, offline, broken): refused, with why, not let through
     // unchecked; and not kept, so the next try asks again.
     std::fs::remove_file(sw::store::files::data_dir().join("models.json")).unwrap();

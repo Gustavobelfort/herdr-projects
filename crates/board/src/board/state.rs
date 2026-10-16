@@ -51,10 +51,11 @@ pub struct ChatAt { pub key: String, pub top: Option<usize>, pub lines: Vec<Stri
 #[derive(Clone, Debug, Default)]
 pub struct ChatFit { pub total: usize, pub rows: usize, pub top: usize, pub above: usize, pub below: usize, pub latest: usize }
 /// One row of the folded list: a heading, a task, a note ("↓ 3 more done"), or an automation. A heading is a machine's
-/// (`machine`, with every machine shown) or a group's (a repo, a status), selectable by its `id` (update/heads.rs), and
-/// folded holds how many tasks it hides (0: open); the automations' heading has no id.
+/// (`machine`, with every machine shown) or a group's (a repo, a status, a machine's automations: `autos`), selectable
+/// by its `id` (update/heads.rs). `folded` holds how many rows it hides, tasks and automations (0: open), `folded_autos`
+/// how many of those are automations.
 #[derive(Clone, Debug)]
-pub enum Row { Head { name: String, autos: bool, id: String, machine: bool, folded: usize }, Rec(Rec), Note(String), Auto(Obj) }
+pub enum Row { Head { name: String, autos: bool, id: String, machine: bool, folded: usize, folded_autos: usize }, Rec(Rec), Note(String), Auto(Obj) }
 /// The selection's row in the list as last laid out, to keep the selection steady when rows move: `group` is the
 /// heading it stands under (a heading's own id; update/landing.rs for the rows that are no task's).
 #[derive(Clone, Debug, Default)]
@@ -103,6 +104,8 @@ pub struct State {
     pub input: TextBox,
     pub editing: Option<Editing>, pub edit_line: usize,
     pub setup: Option<Setup>, pub paste_text: String,
+    /// The paste screen's first line shown, how far down it can go and how many lines it shows (set as it is drawn).
+    pub paste_at: usize, pub paste_more: usize, pub paste_room: usize,
     /// The first ctrl+c (or the last esc) shows how the board closes: until then (ms), and whether esc showed it.
     pub closing: Option<(i64, bool)>, pub leaving: bool, pub leave_at: i64,
     pub attempt_at: HashMap<String, String>,
@@ -137,7 +140,7 @@ impl State {
             side: false, full: false, panel_top: 0, panel_height: 1, panel_length: 0, width: 120,
             mode: Mode::New, menu: None, ask: None, by_repo: false, draft_away: None, auto_open: false, auto_at: -1, folded: Default::default(), scope: String::new(),
             filter: String::new(), msg: String::new(), msg_kind: Ink::Muted, chat_open: true, chat_folded: false, just_sent: HashMap::new(), chat_at: None, chat_fit: None, chat_rows: None,
-            input: TextBox::default(), editing: None, edit_line: 0, setup: None, paste_text: String::new(), closing: None, leaving: false, leave_at: 0,
+            input: TextBox::default(), editing: None, edit_line: 0, setup: None, paste_text: String::new(), paste_at: 0, paste_more: 0, paste_room: 1, closing: None, leaving: false, leave_at: 0,
             attempt_at: HashMap::new(), pending: HashMap::new(), list_room: 0, list_tall: false, list_width: 0, fold_sel: String::new(), unread_top: 0, unread_max: 0, list_at: None, list_ids: vec![],
             told: 0, rang: 0, err_hid: String::new(), told_reply: String::new(), lone_at: 0, prefixed: 0, stale: String::new(), left: String::new(),
             held: None, guest: false, viewed: false, off_note: String::new(), size: Default::default(), chat_key_shown: false, web_ui_asked: false, tags_gone: false, now: crate::clock::now(), ticks: 0, osc_sent: HashMap::new(),

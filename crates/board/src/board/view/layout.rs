@@ -17,9 +17,16 @@ pub struct Screen { pub lines: Vec<Inked>, pub cursor: Option<(u16, u16)> }
 fn pad(mut lines: Vec<Inked>, n: usize) -> Vec<Inked> { lines.truncate(n); while lines.len() < n { lines.push(Inked::new()); } lines }
 /// One greyed line that never runs off the screen: the main thing and the last one stay, what is between them goes
 /// first, from the last of them back; the chat's own key, while the message is hidden, outlasts them.
+/// A hint's words, greyed, with what it lights (a coordinator's name) in its colour.
+fn words(out: &mut Inked, h: &Hint) {
+    match h.words.find(&h.lit).filter(|_| !h.lit.is_empty()) {
+        Some(at) => { out.push(&h.words[..at], Ink::Muted); out.push(h.lit.clone(), h.tint); out.push(&h.words[at + h.lit.len()..], Ink::Muted); }
+        None => { out.push(h.words.clone(), Ink::Muted); }
+    }
+}
 fn hint_line(list: Vec<Hint>, chat_key: Option<&Hint>, width: usize) -> Inked {
     let mut list: Vec<Hint> = list.into_iter().take(6).collect();
-    let text = |l: &[Hint]| { let mut out = Inked::new(); for (n, h) in l.iter().enumerate() { if n > 0 { out.push(" · ", Ink::Muted); } if !h.key.is_empty() { out.push(h.key.clone(), Ink::Soft); } if !h.key.is_empty() && !h.words.is_empty() { out.push(" ", Ink::Muted); } if !h.words.is_empty() { out.push(h.words.clone(), Ink::Muted); } } out };
+    let text = |l: &[Hint]| { let mut out = Inked::new(); for (n, h) in l.iter().enumerate() { if n > 0 { out.push(" · ", Ink::Muted); } if !h.key.is_empty() { out.push(h.key.clone(), Ink::Soft); } if !h.key.is_empty() && !h.words.is_empty() { out.push(" ", Ink::Muted); } if !h.words.is_empty() { words(&mut out, h); } } out };
     let room = width.saturating_sub(2);
     let give_up = |l: &[Hint]| -> usize {
         let at = l.len() - 2;
@@ -73,12 +80,7 @@ fn draw_at(s: &mut State, t: &Theme, width: usize, rows: usize) -> Screen {
     s.width = width;
     let rows_n = rows.max(1);
     let r = s.current().cloned();
-    if !s.paste_text.is_empty() {
-        let mut out = vec![Inked::new()];
-        for l in s.paste_text.clone().split('\n') { out.extend(Inked::plain(l).wrap(width.saturating_sub(4).max(10)).into_iter().map(|x| Inked::plain("  ").add(x))); }
-        out.push(Inked::new()); out.push(Inked::plain("  ").add(Inked::of("any key continues", Ink::Muted)));
-        return Screen { lines: pad(out, rows_n).into_iter().map(|l| l.cut(width)).collect(), cursor: None };
-    }
+    if !s.paste_text.is_empty() { return Screen { lines: pad(super::paste::paste_lines(s, width, rows_n), rows_n).into_iter().map(|l| l.cut(width)).collect(), cursor: None }; }
     if s.setup.is_some() { return Screen { lines: super::setup::setup_lines(s, width, rows_n).into_iter().map(|l| l.cut(width)).collect(), cursor: None }; }
     let selected_job = s.jobs.iter().position(|j| j.s("id") == s.sel);
     // The chat: one line that says who you talk to and, under it, the text box. None of it pushes the box or its hints

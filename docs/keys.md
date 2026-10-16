@@ -148,6 +148,30 @@ What it shows, for example:
 Restarting the Coordinator, starting a new one, and going into its whole chat are not on the board: see
 [the Coordinator](coordinator.md).
 
+## Your own keys
+
+**A key that never reaches the board can be moved to another chord.** Some window managers and terminals take `Alt` for
+themselves, and the `Alt` keys are the ones you press all the time. Give a key your own chord with the setting
+`board.keys`: each key by its name, as the tables below call it (the name is in `crates/flow/src/board/keys.rs`, and in
+the error when you mistype one), then `=`, then the chord.
+
+```
+herdr-projects set board.keys "chatMessage=ctrl+o, chatScrollUp=ctrl+up, chatScrollDown=ctrl+down"
+```
+
+- **The key then answers to your chord only.** Its old chord does nothing. The `?` menu, the hint line and the board's
+  messages name your chord, on the web board too.
+- **A chord that is taken is refused, and you are told by which key:** `chatMessage=ctrl+l: ctrl+l is yes's key
+  already`. To use it anyway, move that key too, in the same value (`undo=ctrl+c, close=ctrl+q`). The key that opens
+  the board is refused too, and so is Herdr's prefix when that key starts with it.
+- **A plain character only for a key that is one already** (`talk`, `menu`, `sayYes`, `sayNo`): any other would be typed
+  into the text box. The text box's own keys (`newline`) cannot be moved.
+- **It is yours only**: never for one repo, and never from a repo's own file.
+- `herdr-projects unset board.keys` gives every key its own chord back. A mistake made by hand in your settings file
+  counts for nothing: that key keeps its own chord, and `herdr-projects show` says why.
+
+The tables below always show the chords the board comes with.
+
 ## All the keys
 
 <!-- made:keys Made by `herdr-projects docs` from crates/flow/src/board/keys.rs. Do not edit between these two lines. -->
@@ -158,7 +182,7 @@ Restarting the Coordinator, starting a new one, and going into its whole chat ar
 | `↑` `↓` | move between tasks and their headings, and on to the automations under them |
 | `Pgup` `Pgdn` | a page up or down: ten tasks in the list, a page of text in the whole task |
 | `Enter` | send what you typed; with nothing typed, open the task's agent: its real herdr pane. The board keeps running in its own tab and is there as you left it; your key goes back to it (as a popup it closes, and your key opens it again where it was). On an automation's row: open the automation, whole ([automations.md](automations.md)). On a heading (a machine, a repo, a status group): fold it to its one line, which says how many tasks it holds, and unfold it; its caret says which it is, `▾` open, `▸` folded ([list-headings.md](list-headings.md)) |
-| `Space` | flip who you talk to: the selected task's agent, and back to the Coordinator. The chat says who. Nothing else changes it: while it is a task's agent, moving with `↑` `↓` makes it the agent of the task you moved to. On a task with no agent, your message puts one on it. On an automation's row: turn the automation on or off |
+| `Space` | flip who you talk to: the selected task's agent, and back to the Coordinator. The chat says who. Nothing else changes it: while it is a task's agent, moving with `↑` `↓` makes it the agent of the task you moved to. On a task with no agent, your message puts one on it. On a machine's or a repo's heading: that machine's or repo's own coordinator. On an automation's row: turn the automation on or off |
 | `Tab` | put an agent on the task. With text typed for the Coordinator: send it, and every task it adds from that message gets an agent at once, with nothing more to confirm (a message that adds no task delegates nothing). On an automation's row: fire the automation now |
 | `Esc` | back, one step at a time, and nothing else: find is left, a draft is put away, then the whole task, the filter and the archive close, then the chat's latest message is hidden, as `Ctrl+Alt+C` hides it. With none of those left it shows the same hint as `Ctrl+C`; the board as a popup (`board.open`) closes on it. It never shows the chat and never changes who you talk to |
 | `?` | the menu: every key in these three groups, each line with its key. A ctrl or alt line can be picked with `↑` `↓` and `Enter`, which does what its key does. It opens with no line picked. Under the keys, what a row shows: each mark with its word, the numbers on the right, and what the colour of a review tag and of a pull request say. Every line is whole (a long one wraps); where the window is too short for all of it the last line says how many lines are below, and `↓` on the last key scrolls on down, `↑` on the first scrolls up |

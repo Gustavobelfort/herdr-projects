@@ -11,7 +11,8 @@
 //! where it stands in the ? menu and docs/keys.md; `with` described in another entry's row; `doc` what it does, for
 //! docs/keys.md; `help` a plain key's line in the ? menu; `hint` its usual words on the hint line; `draft` the board's
 //! key with a draft in the text box too; `web` what its button is called on the web board. In doc, help and hint,
-//! another key is named as {name}, never by its chord. The order is the order everywhere.
+//! another key is named as {name}, never by its chord. The order is the order everywhere. Your own chord for a key
+//! (`board.keys`, remap.rs) takes the place of `keys` and `raw` in is() and in every name of the key.
 use std::cell::Cell;
 
 /// The groups, in the order the ? menu and docs/keys.md show them.
@@ -37,7 +38,7 @@ pub static KEYS: &[Key] = &[
     Key { id: K::Newline, name: "newline", keys: &["shift+enter"], raw: &[], show: None, gap: None, group: None, with: None, fixed: true, draft: false, web: None, help: None, hint: Some("new line"),
         doc: Some("a new line in what you are typing. Like the cursor keys and backspace, it is the text box's own editing key, not a key of the board") },
     Key { id: K::Talk, name: "talk", keys: &[], raw: &[" "], show: Some("space"), gap: None, group: Some("plain"), with: None, fixed: false, draft: false, web: Some("Talk"), help: Some("flip who you talk to: the Coordinator, or this task's agent"), hint: Some("talk to this task's agent"),
-        doc: Some("flip who you talk to: the selected task's agent, and back to the Coordinator. The chat says who. Nothing else changes it: while it is a task's agent, moving with {up} {down} makes it the agent of the task you moved to. On a task with no agent, your message puts one on it. On an automation's row: turn the automation on or off") },
+        doc: Some("flip who you talk to: the selected task's agent, and back to the Coordinator. The chat says who. Nothing else changes it: while it is a task's agent, moving with {up} {down} makes it the agent of the task you moved to. On a task with no agent, your message puts one on it. On a machine's or a repo's heading: that machine's or repo's own coordinator. On an automation's row: turn the automation on or off") },
     Key { id: K::Delegate, name: "delegate", keys: &["tab"], raw: &[], show: None, gap: None, group: Some("plain"), with: None, fixed: false, draft: false, web: Some("Put an agent on this task"), help: Some("put an agent on this task"), hint: Some("put an agent on this task"),
         doc: Some("put an agent on the task. With text typed for the Coordinator: send it, and every task it adds from that message gets an agent at once, with nothing more to confirm (a message that adds no task delegates nothing). On an automation's row: fire the automation now") },
     Key { id: K::Back, name: "back", keys: &["escape"], raw: &[], show: Some("esc"), gap: None, group: Some("plain"), with: None, fixed: false, draft: false, web: Some("Back"), help: Some("back, one step at a time (as a popup, the board closes on the last one)"), hint: Some("back"),
@@ -115,6 +116,7 @@ pub fn norm(chord: &str) -> String {
 /// Is this press the key `id`?
 pub fn is(p: &Press, id: K) -> bool {
     let k = entry(id);
+    if let Some(mine) = super::remap::chords(k.name) { let typed = norm(&p.chord); return mine.iter().any(|c| norm(c) == typed); } // yours only (board.keys)
     if let Some(c) = p.ch { if k.raw.iter().any(|r| r.chars().eq(std::iter::once(c))) { return true; } }
     let typed = norm(&p.chord);
     k.keys.iter().any(|c| norm(c) == typed)
@@ -125,7 +127,13 @@ pub fn typed(p: &Press, pick: impl Fn(&Key) -> bool) -> Option<K> { KEYS.iter().
 thread_local! { static BUTTONS: Cell<bool> = const { Cell::new(false) }; }
 /// The web board has buttons, not keys: there a key is named as its button is ("“Undo” brings it back").
 pub fn name_as_buttons(on: bool) { BUTTONS.with(|b| b.set(on)); }
-fn own(k: &Key) -> String { if BUTTONS.with(|b| b.get()) { if let Some(w) = k.web { return format!("“{w}”"); } } k.show.unwrap_or(k.keys.first().copied().unwrap_or("")).to_string() }
+fn own(k: &Key) -> String {
+    if BUTTONS.with(|b| b.get()) { if let Some(w) = k.web { return format!("“{w}”"); } }
+    if let Some(mine) = super::remap::chords(k.name) { return mine[0].clone(); }
+    k.show.unwrap_or(k.keys.first().copied().unwrap_or("")).to_string()
+}
+/// The chord a key is pressed with, yours where `board.keys` moves it ("ctrl+l"); "" for a key typed as a character.
+pub fn chord(id: K) -> String { let k = entry(id); super::remap::chords(k.name).map(|m| m[0].clone()).unwrap_or_else(|| if k.raw.is_empty() { k.keys.first().copied().unwrap_or("").to_string() } else { String::new() }) }
 /// The key called `id` as the board writes it: "ctrl+a".
 pub fn name(id: K) -> String { own(entry(id)) }
 /// With the keys described in the same row: "↑ ↓".

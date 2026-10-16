@@ -56,14 +56,17 @@ pub const HELP: &str = r#"herdr-projects: a work board for herdr
   herdr-projects coordinator new [--agent KIND[/MODEL]] [--effort E]
                                                 a fresh one; with options, that choice is for this one only
   herdr-projects coordinator stop              close it; the next message starts it again where it left off (words still waiting go in then)
+  herdr-projects coordinator --machine …       the same for this machine's machine coordinator
+  herdr-projects coordinator --project REPO …  the same for a repo's project coordinator
   herdr-projects --skill                       instructions an agent can load
   herdr-projects machines                      other machines: whether each answers, its version, or why not and what to do;
                                                 and whether another machine could ask this one
   herdr-projects web-ui [link|unlink]          the board inside the herdr web UI: how it stands; point the web UI's shared link at it, or back
   herdr-projects version                       this program's version, and where it is
   herdr-projects install                       write the launcher in the data folder (agents and hooks run it) for this program
-  herdr-projects doctor                       older installs on this machine (herdr-superwork, herdr-projects 0.2): take over
-                                                what is left of them, and say where things stand
+  herdr-projects doctor                        the health check: the program and its launcher, the plugin in herdr, the
+                                                agent programs and their settings, other machines, disk space, leftovers
+                                                to clean, older installs; each problem with what to do (exits 1 on one)
   herdr-projects update [VERSION]              this program, in place, from the newest release (or that version)
   herdr-projects remove-extras                 take out what the plugin added outside its own folders (the how-to
                                                 files, its blocks in herdr's config); run it before unlinking

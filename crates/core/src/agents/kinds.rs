@@ -7,11 +7,13 @@
 //!   program      the executable                                                 the name
 //!   aliases      other names a setting may give it (herdr's integration name)   none
 //!   access_full / access_ask  the arguments for each `<role>.access` value     no `ask`: the value is refused for it
-//!   efforts      the effort levels it accepts                                   none: any word is passed on
+//!   efforts      the effort levels it accepts, where the program cannot say them none: any word is passed on
+//!   efforts_read where the program says its levels itself (efforts.rs)          its --help, else `efforts`
 //!   effort       the arguments that give it an effort, `{}` the level           none: an effort is refused
 //!   model        the arguments that give it a model, `{}` the model             none: a model is refused
-//!   models       the model names it takes: its own command that lists them, or  none: a name is not checked
-//!                its short and full names
+//!   models       the model names it takes: its own command that lists them (or  none: a name is not checked
+//!                its app-server, for the account it is signed in with), or its
+//!                short and full names
 //!   resume       the arguments that reopen a conversation, `{}` its id          none: it starts afresh
 //!   session      the arguments that name a new conversation, `{}` a new uuid    none: herdr's integration tells it
 //!   fresh        the arguments that start a new conversation, not its last one  none
@@ -25,6 +27,7 @@
 //!   rules_file   the file in its start folder it reads at every conversation    none: it is told to read the rules
 //!   since        an argument and the first version that takes it               older: started without it
 //!   integration  herdr's own integration for it, and whether herdr sees its state only through it
+//!   login        its own command that says whether it is signed in, and how to sign in   none: not asked
 //!   cannot       roles it cannot do, and why                                    none
 pub struct Kind {
     pub name: &'static str,
@@ -32,6 +35,8 @@ pub struct Kind {
     pub aliases: &'static [&'static str],
     pub min_version: &'static str,
     pub efforts: &'static [&'static str],
+    /// Where the program says the effort levels it takes (efforts.rs); `efforts` when it cannot be asked.
+    pub efforts_read: EffortsRead,
     pub access_full: &'static [&'static str],
     pub access_ask: Option<&'static [&'static str]>,
     pub fast: bool,
@@ -61,6 +66,9 @@ pub struct Kind {
     pub integration: &'static str,
     /// herdr sees whether it works only through that integration: without it, it is never started.
     pub needs_integration: bool,
+    /// Its own command that says whether it is signed in (`herdr-projects doctor`): signed out when it fails or says
+    /// "not logged in". None: the board cannot tell.
+    pub login: Option<Login>,
     /// (role, why): a role it cannot do well. The role is a setting's first part (worker, reviewer, coordinator,
     /// plan, watcher); `worker` also stands for the fallbacks and the attempts.
     pub cannot: &'static [(&'static str, &'static str)],
@@ -75,12 +83,17 @@ pub struct Headless {
     pub system: &'static [&'static str],
     pub prompt: &'static [&'static str],
 }
+/// Asking a program whether it is signed in: `status`, the arguments that ask; `how`, the command that signs in.
+pub struct Login { pub status: &'static [&'static str], pub how: &'static str }
 /// The model names a program takes: those its own command lists, else its short names and the full names written
 /// here. With neither, a name is not checked: it goes to the program as written.
 pub struct Models {
     /// The program's own command that prints the names it takes (its arguments), and how that is read.
     pub list: &'static [&'static str],
     pub read: Read,
+    /// Its app-server, asked for the names the account it is signed in with can use (Codex's `model/list`, and its
+    /// sign-in from `account/read`, models/server.rs); `list` when it cannot be asked.
+    pub server: &'static [&'static str],
     /// Short names it always takes (claude's `opus`).
     pub aliases: &'static [&'static str],
     /// Its full names, where it has no command that lists them (Claude Code): a newer one is one more line here.
@@ -105,12 +118,22 @@ pub enum Read {
     /// One name a line (opencode's provider/model).
     Lines,
 }
-pub const NO_MODELS: Models = Models { list: &[], read: Read::None, aliases: &[], known: &[], suffix: &[], example: "" };
+/// Where a program says the effort levels it takes.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum EffortsRead {
+    /// Nowhere: only the levels written in its row (`efforts`).
+    Table,
+    /// Its `--help`, at the line of its effort argument: `(low, medium, high)` or `level: off, low, high`.
+    Help,
+    /// Codex's catalog (its `models.list`): each model's `supported_reasoning_levels`.
+    Catalog,
+}
+pub const NO_MODELS: Models = Models { list: &[], read: Read::None, server: &[], aliases: &[], known: &[], suffix: &[], example: "" };
 /// What an entry has that it does not name.
 pub const BASE: Kind = Kind {
-    name: "", program: "", aliases: &[], min_version: "0", efforts: &[], access_full: &[], access_ask: Some(&[]), fast: false, tokens: false,
+    name: "", program: "", aliases: &[], min_version: "0", efforts: &[], efforts_read: EffortsRead::Help, access_full: &[], access_ask: Some(&[]), fast: false, tokens: false,
     interrupt: "esc", rules_file: None, since: &[], reads_turn: false, plan_mode: false, lead: &[], model: &[], models: NO_MODELS, effort: &[], effort_note: "",
-    resume: &[], session: &[], fresh: &[], standing: &[], headless: None, integration: "", needs_integration: false, cannot: &[], checked: "",
+    resume: &[], session: &[], fresh: &[], standing: &[], headless: None, integration: "", needs_integration: false, login: None, cannot: &[], checked: "",
 };
 mod herdr;
 mod own;
