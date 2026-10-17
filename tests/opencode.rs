@@ -46,15 +46,18 @@ fn opencode_is_started_with_a_launch_file_that_carries_its_model_effort_and_rule
     assert_eq!(j.s("model"), "anthropic/claude-opus-5-5#high"); assert_eq!(j.s("update"), "disable");
     // Never a catch-all allow: it would come after OpenCode's own rules (`read *.env: ask`) and override them.
     let asks = |v: &Value| v.arr("permissions").iter().map(|r| format!("{}:{}:{}", r.s("action"), r.s("resource"), r.s("effect"))).collect::<Vec<_>>();
-    // Edits, commands, fetches, other folders and an MCP server's tools ask; handing work to an agent asks unless it
-    // is one of OpenCode's three (a repo's own agent would run on its own rules). The last matching rule wins.
-    assert_eq!(asks(&j), vec!["edit:*:ask", "shell:*:ask", "webfetch:*:ask", "external_directory:*:ask", "mcp:*:ask", "task:*:ask", "task:general:allow", "task:explore:allow", "task:scout:allow"]);
+    // Edits, commands, fetches, other folders and an MCP server's tools ask; work is handed only to OpenCode's own two
+    // subagents (a repo's own agent would run on its own rules), under both names the handing goes by. Last match wins.
+    assert_eq!(asks(&j), vec!["edit:*:ask", "shell:*:ask", "webfetch:*:ask", "external_directory:*:ask", "mcp:*:ask",
+        "task:*:deny", "task:general:allow", "task:explore:allow", "subagent:*:deny", "subagent:general:allow", "subagent:explore:allow"]);
     // The same rules for each of OpenCode's agents: an agent's own rules come after the top-level ones, so a repo's
-    // config giving one of them `shell: allow` would otherwise cancel the ask. And the conversation runs as OpenCode's
-    // own `build`: a repo's config could make a primary agent of its own, with its own rules, the default.
+    // config giving one of them `shell: allow` would otherwise cancel the ask. The conversation runs as OpenCode's own
+    // `build`, kept a visible primary agent: a repo's config could make a primary agent of its own the default and hide
+    // `build` so OpenCode passes it over. No agent this version lacks: a block under an unknown name makes a new one.
     let mut agents: Vec<&String> = j.at("agents").as_object().unwrap().keys().collect(); agents.sort();
-    assert_eq!(agents, ["build", "compaction", "explore", "general", "plan", "scout", "summary", "title"]);
+    assert_eq!(agents, ["build", "compaction", "explore", "general", "plan", "summary", "title"]);
     assert!(j.at("agents").as_object().unwrap().values().all(|a| asks(a) == asks(&j)));
+    assert_eq!((j.at("agents").at("build").s("mode"), j.at("agents").at("build").b("hidden"), j.at("agents").at("plan").has("mode")), ("primary", false, false));
     assert_eq!(j.s("default_agent"), "build");
     let mut keys: Vec<&String> = j.as_object().unwrap().keys().collect(); keys.sort();
     assert_eq!(keys, ["$schema", "agents", "default_agent", "model", "permissions", "update"]);
@@ -69,7 +72,7 @@ fn opencode_is_started_with_a_launch_file_that_carries_its_model_effort_and_rule
     assert_eq!(env, vec![("OPENCODE_CONFIG_CONTENT".to_string(), format!("$(cat '{}')", dir.join("opencode-agent.json").display())), ("OPENCODE_DISABLE_AUTOUPDATE".into(), "1".into())]);
     assert_eq!(sw::flow::start::env_command("a1", "opencode", &["--auto".into()], &env), format!("env HERDR_PROJECTS_AGENT=a1 OPENCODE_CONFIG_CONTENT=\"$(cat '{}')\" OPENCODE_DISABLE_AUTOUPDATE=1 opencode --auto", dir.join("opencode-agent.json").display()));
     let inline: Value = serde_json::from_str(&std::fs::read_to_string(dir.join("opencode-agent.json")).unwrap()).unwrap();
-    assert_eq!(inline.s("model"), "openai/gpt-6-sol#high"); assert_eq!(inline.arr("permissions").len(), 9);
+    assert_eq!(inline.s("model"), "openai/gpt-6-sol#high"); assert_eq!(inline.arr("permissions").len(), 11);
     assert!(launch_env("claude", &dir, "agent", "", "", "full").unwrap().is_none());
 }
 
@@ -226,7 +229,7 @@ fn the_coordinator_runs_on_opencode_asks_before_it_acts_and_a_new_one_switches_t
     assert_eq!(&args[..2], &["--standalone", "--session"]); assert!(args[2].starts_with("ses_")); assert_eq!(args.len(), 3);
     let j: Value = serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
     assert_eq!(j.s("model"), "anthropic/claude-haiku-5-5"); // the file carries the model: no flag
-    assert_eq!(j.arr("permissions").iter().filter(|r| r.s("effect") == "ask").count(), 6); assert_eq!(j.s("default_agent"), "build");
+    assert_eq!(j.arr("permissions").iter().filter(|r| r.s("effect") == "ask").count(), 5); assert_eq!(j.s("default_agent"), "build");
     // Its rules are AGENTS.md in its folder, as for pi: no line before the first message.
     assert!(std::fs::read_to_string(home.join("AGENTS.md")).unwrap().contains("board add \"<short title"));
     assert_eq!(strs(a.at("prompts")), vec!["list the tasks"]);

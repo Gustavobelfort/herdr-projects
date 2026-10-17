@@ -22,19 +22,20 @@ use std::process::{Command, Stdio};
 fn rules(access: &str) -> Value {
     let rule = |action: &str, resource: &str, effect: &str| json!({ "action": action, "resource": resource, "effect": effect });
     if access != "ask" { return json!([]); }
-    // Handing work to an agent of a repo's own would run it on that agent's rules: asked first, unless it is one of
-    // OpenCode's (which carry the ask rules themselves). The last matching rule wins.
-    let mut r = vec![rule("edit", "*", "ask"), rule("shell", "*", "ask"), rule("webfetch", "*", "ask"), rule("external_directory", "*", "ask"), rule("mcp", "*", "ask"), rule("task", "*", "ask")];
-    r.extend(SUBAGENTS.iter().map(|a| rule("task", a, "allow")));
+    let mut r = vec![rule("edit", "*", "ask"), rule("shell", "*", "ask"), rule("webfetch", "*", "ask"), rule("external_directory", "*", "ask"), rule("mcp", "*", "ask")];
+    // Handing work to an agent of a repo's own would run it on that agent's rules: work goes only to OpenCode's own two
+    // subagents, which carry the ask rules. 2.0 checks the handing as `subagent`; `task` is the name its pages give it.
+    // The last matching rule wins.
+    for action in ["task", "subagent"] { r.push(rule(action, "*", "deny")); r.extend(SUBAGENTS.iter().map(|a| rule(action, a, "allow"))); }
     Value::Array(r)
 }
-/// OpenCode's agents: the two a conversation runs as, the three it hands work to, the three it uses by itself. An
-/// agent's own rules (`agents.<name>.permissions`) come after the top-level ones, so a repo's config could give one of
-/// them `shell: allow` and cancel the ask rules: the rules are written for each agent too (an agent a repo adds under
-/// another name gets the top-level ones, which it then overrides only by naming them).
-const AGENTS: &[&str] = &["build", "plan", "general", "explore", "scout", "compaction", "title", "summary"];
-/// The three a conversation hands work to.
-const SUBAGENTS: &[&str] = &["general", "explore", "scout"];
+/// OpenCode's agents (2.0.25): the two a conversation runs as, the two it hands work to, the three it uses by itself.
+/// An agent's own rules (`agents.<name>.permissions`) come after the top-level ones, so a repo's config could give one
+/// of them `shell: allow` and cancel the ask rules: the rules are written for each agent too. Never a name this version
+/// lacks: a block under an unknown name makes a new, visible agent of it.
+const AGENTS: &[&str] = &["build", "plan", "general", "explore", "compaction", "title", "summary"];
+/// The two a conversation hands work to.
+const SUBAGENTS: &[&str] = &["general", "explore"];
 /// The file one start is given: the model with its effort as its variant (what a new conversation runs on, and what a
 /// reopened one is switched to; none named: OpenCode's own default), the role's permission rules (at the top and for
 /// each of OpenCode's agents, the conversation pinned to `build`), and no self-update
@@ -46,9 +47,13 @@ pub fn launch_file(dir: &Path, role: &str, model: &str, effort: &str, access: &s
     let r = rules(access);
     if !r.as_array().map(|a| a.is_empty()).unwrap_or(true) {
         cfg.put("permissions", r.clone());
-        cfg.put("agents", Value::Object(AGENTS.iter().map(|n| (n.to_string(), json!({ "permissions": r }))).collect()));
-        // A repo's config could name a primary agent of its own, with its own rules, as the one a conversation runs as:
-        // the conversation runs as OpenCode's own `build`, which carries the ask rules.
+        let mut agents: Obj = AGENTS.iter().map(|n| (n.to_string(), json!({ "permissions": r }))).collect();
+        // A repo's config could name a primary agent of its own, with its own rules, as the one a conversation runs as,
+        // and hide `build` so that OpenCode passes it over: the conversation runs as OpenCode's own `build`, which carries
+        // the ask rules, and `build` stays what it is. Only keys this version's schema has: a key it lacks makes it drop
+        // this whole config, the repo's with it, without a word.
+        agents.obj_mut("build").put("mode", "primary"); agents.obj_mut("build").put("hidden", false);
+        cfg.put("agents", Value::Object(agents));
         cfg.put("default_agent", "build");
     }
     if let Some(m) = model_arg(model, effort) { cfg.put("model", m); }
